@@ -1,0 +1,73 @@
+
+{
+  "name": "Booking",
+  "type": "object",
+  "properties": {
+    "tasker_id": {
+      "type": "string",
+      "description": "ID of the tasker being booked"
+    },
+    "tasker_name": {
+      "type": "string",
+      "description": "Name of the tasker"
+    },
+    "client_email": {
+      "type": "string",
+      "description": "Email of the client"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Name of the client"
+    },
+    "event_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of the event"
+    },
+    "start_time": {
+      "type": "string",
+      "description": "Event start time"
+    },
+    "end_time": {
+      "type": "string",
+      "description": "Event end time"
+    },
+    "event_location": {
+      "type": "string",
+      "description": "Address of the event"
+    },
+    "event_zip_code": {
+      "type": "string",
+      "description": "Zip code of event location"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Type of event (wedding, corporate, party, etc.)"
+    },
+    "special_requests": {
+      "type": "string",
+      "description": "Any special requirements or notes"
+    },
+    "estimated_total": {
+      "type": "number",
+      "description": "Estimated total cost"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "confirmed",
+        "completed",
+        "cancelled"
+      ],
+      "default": "pending",
+      "description": "Booking status"
+    }
+  },
+  "required": [
+    "tasker_id",
+    "client_email",
+    "event_date"
+  ]
+}
+
