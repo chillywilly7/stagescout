@@ -50,39 +50,6 @@ export const base44 = {
       }
     },
     
-    signup: async (email, password, name, phone, securityQuestion1, securityAnswer1, securityQuestion2, securityAnswer2) => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-          method: "POST",
-          credentials: "include", // Enable cookie storage
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            name,
-            phone,
-            security_question_1: securityQuestion1,
-            security_answer_1: securityAnswer1,
-            security_question_2: securityQuestion2,
-            security_answer_2: securityAnswer2,
-          }),
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          return data;
-        } else {
-          const error = await response.json();
-          throw new Error(error.detail || "Signup failed");
-        }
-      } catch (error) {
-        console.error("Signup error:", error);
-        throw error;
-      }
-    },
-    
     logout: async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/logout`, {
