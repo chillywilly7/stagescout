@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Loader } from 'lucide-react';
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, onShowSignup }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -147,6 +147,17 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
               ))}
             </div>
           )}
+
+          {/* Sign Up Link */}
+          <div className="mt-4 text-center text-slate-400 text-sm">
+            Don't have an account?{' '}
+            <button
+              onClick={onShowSignup}
+              className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+            >
+              Sign Up
+            </button>
+          </div>
         </div>
       </div>
     </div>

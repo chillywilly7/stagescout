@@ -4,6 +4,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import LoginModal from '@/components/LoginModal';
+import SignupModal from '@/components/SignupModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ export default function Layout({ children, currentPageName }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [signupModalOpen, setSignupModalOpen] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -54,6 +56,11 @@ export default function Layout({ children, currentPageName }) {
     setLoginModalOpen(false);
   };
 
+  const handleSignupSuccess = (userData) => {
+    setUser(userData);
+    setSignupModalOpen(false);
+  };
+
   const handleLogout = async () => {
     try {
       await base44.auth.logout();
@@ -77,6 +84,17 @@ export default function Layout({ children, currentPageName }) {
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+        onShowSignup={() => {
+          setLoginModalOpen(false);
+          setSignupModalOpen(true);
+        }}
+      />
+
+      {/* Signup Modal */}
+      <SignupModal
+        isOpen={signupModalOpen}
+        onClose={() => setSignupModalOpen(false)}
+        onSignupSuccess={handleSignupSuccess}
       />
 
       {/* Header */}
