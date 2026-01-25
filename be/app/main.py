@@ -2,18 +2,37 @@ from fastapi import FastAPI, HTTPException, Response, Cookie, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 import json
 import os
 import traceback
 import jwt
 import bcrypt
+import secrets
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
 # Configuration
 SECRET_KEY = "your-secret-key-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/taskers.json")
+RESET_CODE_EXPIRE_MINUTES = 15
+
+# Email configuration (set these environment variables for production)
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "noreply@stagescout.com")
+
+# In-memory store for password reset codes (in production, use Redis or database)
+password_reset_codes: Dict[str, dict] = {}
 
 # FastAPI app
 app = FastAPI(title="Rent-A-Speaker API", version="1.0.0")
@@ -52,6 +71,18 @@ class ForgotPasswordRequest(BaseModel):
     email: str
     security_answer_1: str
     security_answer_2: str
+    new_password: str
+
+class SendResetCodeRequest(BaseModel):
+    email: str
+
+class VerifyResetCodeRequest(BaseModel):
+    email: str
+    code: str
+
+class ResetPasswordWithCodeRequest(BaseModel):
+    email: str
+    code: str
     new_password: str
 
 class TaskerResponse(BaseModel):
@@ -150,6 +181,130 @@ def validate_phone(phone: str) -> Tuple[bool, str]:
         return False, "Phone must be 10 digits (1234567890) or dashed format (123-456-7890)"
     
     return True, ""
+
+def generate_reset_code() -> str:
+    """Generate a 6-digit reset code"""
+    return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+
+def send_reset_email(email: str, code: str, user_name: str) -> bool:
+    """Send password reset email with the code"""
+    try:
+        # Check if SMTP is configured
+        if not SMTP_USERNAME or not SMTP_PASSWORD:
+            # Development mode - print to console instead of sending
+            print("=" * 50)
+            print(f"PASSWORD RESET CODE (Development Mode)")
+            print(f"Email: {email}")
+            print(f"Name: {user_name}")
+            print(f"Reset Code: {code}")
+            print(f"This code expires in {RESET_CODE_EXPIRE_MINUTES} minutes")
+            print("=" * 50)
+            return True
+        
+        # Production mode - send actual email
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'StageScout - Password Reset Code'
+        msg['From'] = SMTP_FROM_EMAIL
+        msg['To'] = email
+        
+        # Plain text version
+        text = f"""
+Hello {user_name},
+
+You requested to reset your password for StageScout.
+
+Your password reset code is: {code}
+
+This code will expire in {RESET_CODE_EXPIRE_MINUTES} minutes.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+The StageScout Team
+        """
+        
+        # HTML version
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0;">StageScout</h1>
+            </div>
+            <div style="padding: 30px; background-color: #f8f9fa;">
+                <h2 style="color: #333;">Password Reset Request</h2>
+                <p style="color: #666;">Hello {user_name},</p>
+                <p style="color: #666;">You requested to reset your password. Use the code below to complete the process:</p>
+                <div style="text-align: center; padding: 20px;">
+                    <div style="background: #1e293b; color: white; font-size: 32px; letter-spacing: 8px; padding: 20px 40px; border-radius: 10px; display: inline-block;">
+                        {code}
+                    </div>
+                </div>
+                <p style="color: #999; font-size: 14px;">This code will expire in {RESET_CODE_EXPIRE_MINUTES} minutes.</p>
+                <p style="color: #999; font-size: 14px;">If you did not request this password reset, please ignore this email.</p>
+            </div>
+            <div style="padding: 20px; text-align: center; background-color: #1e293b;">
+                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2024 StageScout. All rights reserved.</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+        
+        # Send email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        
+        print(f"Reset email sent to {email}")
+        return True
+        
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        traceback.print_exc()
+        return False
+
+def store_reset_code(email: str, code: str):
+    """Store reset code with expiration"""
+    password_reset_codes[email.lower()] = {
+        'code': code,
+        'expires': datetime.utcnow() + timedelta(minutes=RESET_CODE_EXPIRE_MINUTES),
+        'attempts': 0
+    }
+
+def verify_reset_code(email: str, code: str) -> Tuple[bool, str]:
+    """Verify reset code for email"""
+    email_lower = email.lower()
+    
+    if email_lower not in password_reset_codes:
+        return False, "No reset code found. Please request a new one."
+    
+    stored = password_reset_codes[email_lower]
+    
+    # Check if expired
+    if datetime.utcnow() > stored['expires']:
+        del password_reset_codes[email_lower]
+        return False, "Reset code has expired. Please request a new one."
+    
+    # Check attempts (max 5)
+    if stored['attempts'] >= 5:
+        del password_reset_codes[email_lower]
+        return False, "Too many failed attempts. Please request a new code."
+    
+    # Verify code
+    if stored['code'] != code:
+        stored['attempts'] += 1
+        return False, f"Invalid code. {5 - stored['attempts']} attempts remaining."
+    
+    return True, "Code verified"
+
+def clear_reset_code(email: str):
+    """Remove reset code after successful password reset"""
+    email_lower = email.lower()
+    if email_lower in password_reset_codes:
+        del password_reset_codes[email_lower]
 
 def load_taskers():
     """Load taskers from JSON file"""
@@ -419,6 +574,70 @@ async def forgot_password(request: ForgotPasswordRequest):
         raise HTTPException(status_code=500, detail="Failed to update password")
     
     return {"message": "Password updated successfully"}
+
+@app.post("/api/auth/forgot-password/send-code")
+async def send_password_reset_code(request: SendResetCodeRequest):
+    """Send password reset code to user's email"""
+    taskers = load_taskers()
+    tasker = next((t for t in taskers if t['email'].lower() == request.email.lower()), None)
+    
+    if not tasker:
+        # Don't reveal if email exists for security
+        # But still return success to prevent email enumeration
+        raise HTTPException(status_code=404, detail="No account found with this email address")
+    
+    # Generate and store reset code
+    code = generate_reset_code()
+    store_reset_code(request.email, code)
+    
+    # Send email
+    if not send_reset_email(request.email, code, tasker['name']):
+        raise HTTPException(status_code=500, detail="Failed to send reset email. Please try again later.")
+    
+    return {"message": "Reset code sent to your email", "email": request.email}
+
+@app.post("/api/auth/forgot-password/verify-code")
+async def verify_password_reset_code(request: VerifyResetCodeRequest):
+    """Verify the password reset code"""
+    is_valid, message = verify_reset_code(request.email, request.code)
+    
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
+    return {"message": "Code verified successfully", "valid": True}
+
+@app.post("/api/auth/forgot-password/reset")
+async def reset_password_with_code(request: ResetPasswordWithCodeRequest):
+    """Reset password using the verified code"""
+    # Verify code first
+    is_valid, message = verify_reset_code(request.email, request.code)
+    
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
+    # Validate new password
+    is_valid_password, password_error = validate_password(request.new_password)
+    if not is_valid_password:
+        raise HTTPException(status_code=400, detail=password_error)
+    
+    # Find user and update password
+    taskers = load_taskers()
+    tasker = next((t for t in taskers if t['email'].lower() == request.email.lower()), None)
+    
+    if not tasker:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Hash and update password
+    tasker['password'] = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    # Save updated taskers
+    if not save_taskers(taskers):
+        raise HTTPException(status_code=500, detail="Failed to update password")
+    
+    # Clear the reset code
+    clear_reset_code(request.email)
+    
+    return {"message": "Password has been reset successfully"}
 
 @app.post("/api/auth/logout")
 async def logout(response: Response):

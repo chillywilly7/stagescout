@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Loader } from 'lucide-react';
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess, onShowSignup }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, onShowSignup, onShowForgotPassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -99,6 +99,13 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onShowSign
               disabled={isLoading}
               className="bg-slate-800 border-slate-700 text-white placeholder-slate-500"
             />
+            <button
+              type="button"
+              onClick={onShowForgotPassword}
+              className="mt-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Forgot password?
+            </button>
           </div>
 
           <Button
