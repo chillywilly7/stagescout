@@ -4,6 +4,9 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import LoginModal from '@/components/LoginModal';
+import SignupModal from '@/components/SignupModal';
+import ForgotPasswordModal from '@/components/ForgotPasswordModal';
+import SupportModal from '@/components/SupportModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, User, Calendar, MessageCircle, LogOut, Sparkles } from 'lucide-react';
+import { Menu, X, User, Calendar, MessageCircle, LogOut, Sparkles, Heart } from 'lucide-react';
 
 export default function Layout({ children, currentPageName }) {
   const [user, setUser] = useState(null);
@@ -19,6 +22,9 @@ export default function Layout({ children, currentPageName }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [signupModalOpen, setSignupModalOpen] = useState(false);
+  const [forgotPasswordModalOpen, setForgotPasswordModalOpen] = useState(false);
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -54,6 +60,11 @@ export default function Layout({ children, currentPageName }) {
     setLoginModalOpen(false);
   };
 
+  const handleSignupSuccess = (userData) => {
+    setUser(userData);
+    setSignupModalOpen(false);
+  };
+
   const handleLogout = async () => {
     try {
       await base44.auth.logout();
@@ -77,6 +88,37 @@ export default function Layout({ children, currentPageName }) {
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+        onShowSignup={() => {
+          setLoginModalOpen(false);
+          setSignupModalOpen(true);
+        }}
+        onShowForgotPassword={() => {
+          setLoginModalOpen(false);
+          setForgotPasswordModalOpen(true);
+        }}
+      />
+
+      {/* Signup Modal */}
+      <SignupModal
+        isOpen={signupModalOpen}
+        onClose={() => setSignupModalOpen(false)}
+        onSignupSuccess={handleSignupSuccess}
+      />
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={forgotPasswordModalOpen}
+        onClose={() => setForgotPasswordModalOpen(false)}
+        onBackToLogin={() => {
+          setForgotPasswordModalOpen(false);
+          setLoginModalOpen(true);
+        }}
+      />
+
+      {/* Support Modal */}
+      <SupportModal
+        isOpen={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
       />
 
       {/* Header */}
@@ -112,6 +154,13 @@ export default function Layout({ children, currentPageName }) {
                 Become a Pro
               </Link>
             ) : null}
+            <button
+              onClick={() => setSupportModalOpen(true)}
+              className="px-4 py-2 rounded-xl font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
+            >
+              <Heart className="w-4 h-4" />
+              Support
+            </button>
             
             {user ? (
               <>
@@ -215,6 +264,16 @@ export default function Layout({ children, currentPageName }) {
                 Become a Pro
               </Link>
             ) : null}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setSupportModalOpen(true);
+              }}
+              className="block w-full py-3 px-4 text-left text-white font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
+              <Heart className="w-4 h-4 text-pink-400" />
+              Support
+            </button>
             {user ? (
               <>
                 <Link
@@ -268,25 +327,17 @@ export default function Layout({ children, currentPageName }) {
       </main>
 
       {/* Footer */}
-      <footer className="bg-black text-white py-16 px-6 border-t border-slate-800">
+      <footer className="bg-black text-white py-12 px-6 border-t border-slate-800">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="flex items-center gap-3">
-              <img 
-                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/696c55978cb7d68eea70c428/564dfa7a5_PHOTO-2025-08-01-23-58-27.jpg" 
-                alt="Rent-A-Speaker"
-                className="h-12 w-auto"
-              />
+          <div className="flex flex-col items-center gap-6">
+            <img 
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/696c55978cb7d68eea70c428/564dfa7a5_PHOTO-2025-08-01-23-58-27.jpg" 
+              alt="Rent-A-Speaker"
+              className="h-10 w-auto"
+            />
+            <div className="text-center text-slate-500 text-sm">
+              © {new Date().getFullYear()} Rent-A-Speaker. All rights reserved.
             </div>
-            <nav className="flex flex-wrap justify-center gap-8">
-              <Link to={createPageUrl('Home')} className="text-slate-400 hover:text-white transition-colors font-medium">Home</Link>
-              <Link to={createPageUrl('Search')} className="text-slate-400 hover:text-white transition-colors font-medium">Browse</Link>
-              <Link to={createPageUrl('BecomeTasker')} className="text-slate-400 hover:text-white transition-colors font-medium">Become a Pro</Link>
-              <span className="text-slate-400 hover:text-white transition-colors cursor-pointer font-medium">Support</span>
-            </nav>
-          </div>
-          <div className="mt-12 pt-8 border-t border-slate-800 text-center text-slate-600 text-sm">
-            © {new Date().getFullYear()} Rent-A-Speaker. All rights reserved.
           </div>
         </div>
       </footer>

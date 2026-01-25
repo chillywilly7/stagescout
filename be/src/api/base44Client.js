@@ -71,6 +71,86 @@ export const base44 = {
       // This will be called from the UI to show login modal
       window.dispatchEvent(new CustomEvent("showLoginModal"));
     },
+
+    signup: async (email, password, name, phone, securityQuestion1, securityAnswer1, securityQuestion2, securityAnswer2) => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            name,
+            phone,
+            security_question_1: securityQuestion1,
+            security_answer_1: securityAnswer1,
+            security_question_2: securityQuestion2,
+            security_answer_2: securityAnswer2,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          return data;
+        } else {
+          const error = await response.json();
+          throw new Error(error.detail || "Signup failed");
+        }
+      } catch (error) {
+        console.error("Signup error:", error);
+        throw error;
+      }
+    },
+
+    getSecurityQuestions: async (email) => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/security-questions?email=${encodeURIComponent(email)}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          return await response.json();
+        } else {
+          throw new Error("Failed to fetch security questions");
+        }
+      } catch (error) {
+        console.error("Error fetching security questions:", error);
+        throw error;
+      }
+    },
+
+    forgotPassword: async (email, securityAnswer1, securityAnswer2, newPassword) => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            security_answer_1: securityAnswer1,
+            security_answer_2: securityAnswer2,
+            new_password: newPassword,
+          }),
+        });
+
+        if (response.ok) {
+          return await response.json();
+        } else {
+          const error = await response.json();
+          throw new Error(error.detail || "Password reset failed");
+        }
+      } catch (error) {
+        console.error("Forgot password error:", error);
+        throw error;
+      }
+    },
   },
   
   entities: {

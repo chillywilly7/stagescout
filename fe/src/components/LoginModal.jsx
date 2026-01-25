@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Loader } from 'lucide-react';
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, onShowSignup, onShowForgotPassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -52,7 +52,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8">
       <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 border border-slate-800">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-800">
@@ -99,6 +99,13 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
               disabled={isLoading}
               className="bg-slate-800 border-slate-700 text-white placeholder-slate-500"
             />
+            <button
+              type="button"
+              onClick={onShowForgotPassword}
+              className="mt-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Forgot password?
+            </button>
           </div>
 
           <Button
@@ -147,6 +154,17 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
               ))}
             </div>
           )}
+
+          {/* Sign Up Link */}
+          <div className="mt-4 text-center text-slate-400 text-sm">
+            Don't have an account?{' '}
+            <button
+              onClick={onShowSignup}
+              className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+            >
+              Sign Up
+            </button>
+          </div>
         </div>
       </div>
     </div>
