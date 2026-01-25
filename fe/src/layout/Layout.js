@@ -3,7 +3,6 @@ import { Link, Outlet } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
-import LoginModal from '@/components/LoginModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +17,6 @@ export default function Layout({ children, currentPageName }) {
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -36,49 +34,13 @@ export default function Layout({ children, currentPageName }) {
       setScrolled(window.scrollY > 50);
     };
     window.addEventListener('scroll', handleScroll);
-    
-    // Listen for login modal show event
-    const handleShowLoginModal = () => {
-      setLoginModalOpen(true);
-    };
-    window.addEventListener('showLoginModal', handleShowLoginModal);
-    
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('showLoginModal', handleShowLoginModal);
-    };
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const handleLoginSuccess = (userData) => {
-    setUser(userData);
-    setLoginModalOpen(false);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await base44.auth.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // Clear local state regardless of logout response
-      setUser(null);
-      setMobileMenuOpen(false);
-      // Redirect to home page after logout
-      window.location.href = createPageUrl('Home');
-    }
-  };
 
   const isTransparentHeader = currentPageName === 'Home' && !scrolled;
 
   return (
     <div className="min-h-screen bg-slate-950">
-      {/* Login Modal */}
-      <LoginModal
-        isOpen={loginModalOpen}
-        onClose={() => setLoginModalOpen(false)}
-        onLoginSuccess={handleLoginSuccess}
-      />
-
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         isTransparentHeader 
@@ -103,15 +65,12 @@ export default function Layout({ children, currentPageName }) {
             >
               Browse
             </Link>
-            {/* Only show "Become a Pro" if user is not signed in or is a regular user (not Pro) */}
-            {!user || !user.is_pro ? (
-              <Link
-                to={createPageUrl('BecomeTasker')}
-                className="px-4 py-2 rounded-xl font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all"
-              >
-                Become a Pro
-              </Link>
-            ) : null}
+            <Link
+              to={createPageUrl('BecomeTasker')}
+              className="px-4 py-2 rounded-xl font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            >
+              Become a Pro
+            </Link>
             
             {user ? (
               <>
@@ -161,7 +120,7 @@ export default function Layout({ children, currentPageName }) {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-slate-700" />
                     <DropdownMenuItem
-                      onClick={handleLogout}
+                      onClick={() => base44.auth.logout()}
                       className="text-red-400 focus:text-red-400 focus:bg-slate-800 py-3"
                     >
                       <LogOut className="w-4 h-4 mr-3" />
@@ -173,7 +132,7 @@ export default function Layout({ children, currentPageName }) {
             ) : (
               !isLoadingUser && (
                 <Button
-                  onClick={() => setLoginModalOpen(true)}
+                  onClick={() => base44.auth.redirectToLogin()}
                   className="ml-2 px-6 py-2 h-12 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25"
                 >
                   Sign In
@@ -205,16 +164,13 @@ export default function Layout({ children, currentPageName }) {
             >
               Browse
             </Link>
-            {/* Only show "Become a Pro" if user is not signed in or is a regular user (not Pro) */}
-            {!user || !user.is_pro ? (
-              <Link
-                to={createPageUrl('BecomeTasker')}
-                className="block py-3 px-4 text-white font-medium rounded-xl hover:bg-white/10 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Become a Pro
-              </Link>
-            ) : null}
+            <Link
+              to={createPageUrl('BecomeTasker')}
+              className="block py-3 px-4 text-white font-medium rounded-xl hover:bg-white/10 transition-colors"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Become a Pro
+            </Link>
             {user ? (
               <>
                 <Link
@@ -239,9 +195,7 @@ export default function Layout({ children, currentPageName }) {
                   My Services
                 </Link>
                 <button
-                  onClick={() => {
-                    handleLogout();
-                  }}
+                  onClick={() => base44.auth.logout()}
                   className="block w-full py-3 px-4 text-left text-red-400 font-medium rounded-xl hover:bg-red-500/10 transition-colors mt-4"
                 >
                   Sign Out
@@ -249,10 +203,7 @@ export default function Layout({ children, currentPageName }) {
               </>
             ) : (
               <Button
-                onClick={() => {
-                  setLoginModalOpen(true);
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => base44.auth.redirectToLogin()}
                 className="w-full h-14 mt-4 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 rounded-xl text-lg font-semibold"
               >
                 Sign In
