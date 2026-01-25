@@ -5,6 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import LoginModal from '@/components/LoginModal';
 import SignupModal from '@/components/SignupModal';
+import ForgotPasswordModal from '@/components/ForgotPasswordModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ export default function Layout({ children, currentPageName }) {
   const [scrolled, setScrolled] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
+  const [forgotPasswordModalOpen, setForgotPasswordModalOpen] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -88,6 +90,10 @@ export default function Layout({ children, currentPageName }) {
           setLoginModalOpen(false);
           setSignupModalOpen(true);
         }}
+        onShowForgotPassword={() => {
+          setLoginModalOpen(false);
+          setForgotPasswordModalOpen(true);
+        }}
       />
 
       {/* Signup Modal */}
@@ -95,6 +101,16 @@ export default function Layout({ children, currentPageName }) {
         isOpen={signupModalOpen}
         onClose={() => setSignupModalOpen(false)}
         onSignupSuccess={handleSignupSuccess}
+      />
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={forgotPasswordModalOpen}
+        onClose={() => setForgotPasswordModalOpen(false)}
+        onBackToLogin={() => {
+          setForgotPasswordModalOpen(false);
+          setLoginModalOpen(true);
+        }}
       />
 
       {/* Header */}
