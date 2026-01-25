@@ -103,6 +103,7 @@ export default function Layout({ children, currentPageName }) {
             >
               Browse
             </Link>
+            
             {/* Only show "Become a Pro" if user is not signed in or is a regular user (not Pro) */}
             {!user || !user.is_pro ? (
               <Link
@@ -205,6 +206,7 @@ export default function Layout({ children, currentPageName }) {
             >
               Browse
             </Link>
+            
             {/* Only show "Become a Pro" if user is not signed in or is a regular user (not Pro) */}
             {!user || !user.is_pro ? (
               <Link

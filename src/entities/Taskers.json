@@ -1,0 +1,150 @@
+{
+  "taskers": [
+    {
+      "tasker_id": "task_001",
+      "name": "Alex Johnson",
+      "email": "alex@example.com",
+      "phone": "555-0101",
+      "password": "$2b$12$abcdefghijklmnopqrstuvwxyz1234567890",
+      "auth_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0YXNrZXJfaWQiOiJ0YXNrXzAwMSIsImVtYWlsIjoiYWxleEBleGFtcGxlLmNvbSJ9.token_001",
+      "profile_image": "https://i.pravatar.cc/150?img=1",
+      "service_category": "dj",
+      "bio": "Professional DJ with 5 years of experience in weddings and corporate events",
+      "hourly_rate": 75,
+      "daily_rate": 500,
+      "zip_code": "90210",
+      "service_radius_miles": 30,
+      "portfolio_images": [
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400",
+        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400"
+      ],
+      "equipment_list": ["Pioneer CDJ-3000", "DJM-900NXS2 Mixer", "Technics SL-1200MK7 Turntable", "Rane SEVENTY-TWO Mixer"],
+      "average_rating": 4.8,
+      "total_reviews": 24,
+      "years_experience": 5,
+      "is_verified": true
+    },
+    {
+      "tasker_id": "task_002",
+      "name": "Maria Rodriguez",
+      "email": "maria@example.com",
+      "phone": "555-0102",
+      "password": "$2b$12$bcdefghijklmnopqrstuvwxyz12345678901",
+      "auth_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0YXNrZXJfaWQiOiJ0YXNrXzAwMiIsImVtYWlsIjoibWFyaWFAZXhhbXBsZS5jb20ifQ.token_002",
+      "profile_image": "https://i.pravatar.cc/150?img=2",
+      "service_category": "photographer",
+      "bio": "Creative photographer specializing in weddings, events, and portraits",
+      "hourly_rate": 85,
+      "daily_rate": 600,
+      "zip_code": "90211",
+      "service_radius_miles": 25,
+      "portfolio_images": [
+        "https://images.unsplash.com/photo-1502982917957-e7d9ca3f479f?w=400",
+        "https://images.unsplash.com/photo-1516062423079-7ca13cdc7f5a?w=400",
+        "https://images.unsplash.com/photo-1511379938547-c1f69b13d835?w=400"
+      ],
+      "equipment_list": ["Canon EOS R5", "Sony A7R IV", "Nikon Z9", "Fujifilm GFX100S", "Variety of lenses"],
+      "average_rating": 4.9,
+      "total_reviews": 31,
+      "years_experience": 7,
+      "is_verified": true
+    },
+    {
+      "tasker_id": "task_003",
+      "name": "David Chen",
+      "email": "david@example.com",
+      "phone": "555-0103",
+      "password": "$2b$12$cdefghijklmnopqrstuvwxyz123456789012",
+      "auth_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0YXNrZXJfaWQiOiJ0YXNrXzAwMyIsImVtYWlsIjoiZGF2aWRAZXhhbXBsZS5jb20ifQ.token_003",
+      "profile_image": "https://i.pravatar.cc/150?img=3",
+      "service_category": "lighting",
+      "bio": "Expert in event lighting design and production. Over a decade of experience",
+      "hourly_rate": 65,
+      "daily_rate": 450,
+      "zip_code": "90212",
+      "service_radius_miles": 40,
+      "portfolio_images": [
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400",
+        "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400"
+      ],
+      "equipment_list": ["Chauvet Professional Maverick", "ETC Source Four", "ADJ Vizi Beam", "Martin MAC Aura", "High-power LED arrays"],
+      "average_rating": 4.7,
+      "total_reviews": 18,
+      "years_experience": 12,
+      "is_verified": true
+    },
+    {
+      "tasker_id": "task_004",
+      "name": "Emma Thompson",
+      "email": "emma@example.com",
+      "phone": "555-0104",
+      "password": "$2b$12$defghijklmnopqrstuvwxyz1234567890123",
+      "auth_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0YXNrZXJfaWQiOiJ0YXNrXzAwNCIsImVtYWlsIjoiZW1tYUBleGFtcGxlLmNvbSJ9.token_004",
+      "profile_image": "https://i.pravatar.cc/150?img=4",
+      "service_category": "live_music",
+      "bio": "Multi-talented musician offering live band performance and DJ services",
+      "hourly_rate": 120,
+      "daily_rate": 800,
+      "zip_code": "90213",
+      "service_radius_miles": 50,
+      "portfolio_images": [
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400",
+        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400",
+        "https://images.unsplash.com/photo-1511379938547-c1f69b13d835?w=400"
+      ],
+      "equipment_list": ["Yamaha P-515 Piano", "Fender Stratocaster", "Sennheiser Wireless Microphone", "Roland TR-808 Drum Machine"],
+      "average_rating": 4.9,
+      "total_reviews": 42,
+      "years_experience": 15,
+      "is_verified": true
+    },
+    {
+      "tasker_id": "task_005",
+      "name": "James Wilson",
+      "email": "james@example.com",
+      "phone": "555-0105",
+      "password": "$2b$12$efghijklmnopqrstuvwxyz12345678901234",
+      "auth_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0YXNrZXJfaWQiOiJ0YXNrXzAwNSIsImVtYWlsIjoiamFtZXNAZXhhbXBsZS5jb20ifQ.token_005",
+      "profile_image": "https://i.pravatar.cc/150?img=5",
+      "service_category": "audio_rental",
+      "bio": "Premium audio equipment rental for events, concerts, and productions",
+      "hourly_rate": 45,
+      "daily_rate": 350,
+      "zip_code": "90214",
+      "service_radius_miles": 60,
+      "portfolio_images": [
+        "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400",
+        "https://images.unsplash.com/photo-1514067553537-b7667c07888d?w=400"
+      ],
+      "equipment_list": ["Soundcraft Si Impact Console", "QSC K series Speakers", "Shure ULXD Wireless System", "RME Dante Interface"],
+      "average_rating": 4.6,
+      "total_reviews": 28,
+      "years_experience": 8,
+      "is_verified": true
+    },
+    {
+      "tasker_id": "task_006",
+      "name": "Sarah Miller",
+      "email": "sarah@example.com",
+      "phone": "555-0106",
+      "password": "$2b$12$fghijklmnopqrstuvwxyz123456789012345",
+      "auth_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0YXNrZXJfaWQiOiJ0YXNrXzAwNiIsImVtYWlsIjoic2FyYWhAZXhhbXBsZS5jb20ifQ.token_006",
+      "profile_image": "https://i.pravatar.cc/150?img=6",
+      "service_category": "dj",
+      "bio": "High-energy DJ specializing in club nights and private parties",
+      "hourly_rate": 80,
+      "daily_rate": 550,
+      "zip_code": "90215",
+      "service_radius_miles": 35,
+      "portfolio_images": [
+        "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400",
+        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400"
+      ],
+      "equipment_list": ["Pioneer DJM-1000", "Technics SL-1200 Turntables", "Pioneer CDJ-900", "Allen & Heath Mixer"],
+      "average_rating": 4.8,
+      "total_reviews": 35,
+      "years_experience": 6,
+      "is_verified": true
+    }
+  ]
+}

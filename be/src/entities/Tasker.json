@@ -90,6 +90,10 @@
     "auth_token": {
       "type": "string",
       "description": "JWT authentication token assigned upon sign up/login"
+    },
+    "is_pro": {
+      "type": "boolean",
+      "description": "Whether this user is a Pro (service provider) or Regular (service booker)"
     }
   },
   "required": [
@@ -99,7 +103,8 @@
     "service_category",
     "hourly_rate",
     "zip_code",
-    "password"
+    "password",
+    "is_pro"
   ]
 }
 
