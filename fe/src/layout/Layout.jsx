@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import LoginModal from '@/components/LoginModal';
 import SignupModal from '@/components/SignupModal';
 import ForgotPasswordModal from '@/components/ForgotPasswordModal';
+import SupportModal from '@/components/SupportModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, User, Calendar, MessageCircle, LogOut, Sparkles } from 'lucide-react';
+import { Menu, X, User, Calendar, MessageCircle, LogOut, Sparkles, Heart } from 'lucide-react';
 
 export default function Layout({ children, currentPageName }) {
   const [user, setUser] = useState(null);
@@ -23,6 +24,7 @@ export default function Layout({ children, currentPageName }) {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
   const [forgotPasswordModalOpen, setForgotPasswordModalOpen] = useState(false);
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -113,6 +115,12 @@ export default function Layout({ children, currentPageName }) {
         }}
       />
 
+      {/* Support Modal */}
+      <SupportModal
+        isOpen={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
+      />
+
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         isTransparentHeader 
@@ -146,6 +154,13 @@ export default function Layout({ children, currentPageName }) {
                 Become a Pro
               </Link>
             ) : null}
+            <button
+              onClick={() => setSupportModalOpen(true)}
+              className="px-4 py-2 rounded-xl font-medium text-white/70 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
+            >
+              <Heart className="w-4 h-4" />
+              Support
+            </button>
             
             {user ? (
               <>
@@ -249,6 +264,16 @@ export default function Layout({ children, currentPageName }) {
                 Become a Pro
               </Link>
             ) : null}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setSupportModalOpen(true);
+              }}
+              className="block w-full py-3 px-4 text-left text-white font-medium rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
+              <Heart className="w-4 h-4 text-pink-400" />
+              Support
+            </button>
             {user ? (
               <>
                 <Link
