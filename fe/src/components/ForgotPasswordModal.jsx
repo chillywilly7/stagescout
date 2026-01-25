@@ -245,7 +245,7 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8">
       <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 border border-slate-800">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-800">
