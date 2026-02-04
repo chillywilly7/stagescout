@@ -636,6 +636,32 @@
       "security_answer_1": "iberoamericano",
       "security_question_2": "What city were you born in?",
       "security_answer_2": "el paso"
+    },
+    {
+      "tasker_id": "task_021",
+      "name": "testuser",
+      "email": "ricardo@user.com",
+      "phone": "1234567888",
+      "password": "$2b$12$SnVZRta9DR9aySzcOmZr3OKxZ65n/w.dupmf7SXA3CEECUgiKVayG",
+      "auth_token": "",
+      "profile_image": "https://i.pravatar.cc/150?u=ricardo@user.com",
+      "service_category": "other",
+      "bio": "",
+      "hourly_rate": 0,
+      "daily_rate": 0,
+      "zip_code": "",
+      "service_radius_miles": 25,
+      "portfolio_images": [],
+      "equipment_list": [],
+      "average_rating": 0,
+      "total_reviews": 0,
+      "years_experience": 0,
+      "is_verified": false,
+      "is_pro": false,
+      "security_question_1": "What is your favorite book?",
+      "security_answer_1": "mobydick",
+      "security_question_2": "What is your pet's name?",
+      "security_answer_2": "mirra"
     }
   ]
 }

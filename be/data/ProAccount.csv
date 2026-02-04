@@ -1,0 +1,3 @@
+email,password,verification_code,is_verified,scout_id,id,created_date,updated_date,created_by_id,created_by,is_sample
+"ric.solis96@gmail.com","Stagelink1","","true","","6975a116b01fd390b09c0cab","2026-01-25T04:50:30.265000","2026-01-25T04:50:30.265000","69758739094dbadd0fd499c1","ric.solis96@gmail.com","false"
+"ric.solis96@gmail.com","Stagelink1","583737","true","6975944e2dd75c109038b158","6975935c2e296298556410d7","2026-01-25T03:51:56.845000","2026-01-25T04:12:52.622000","69758739094dbadd0fd499c1","ric.solis96@gmail.com","false"
