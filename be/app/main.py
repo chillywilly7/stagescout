@@ -1463,10 +1463,21 @@ def load_scouts():
     except json.JSONDecodeError:
         return []
 
+def save_scouts(scouts: list) -> bool:
+    """Save scouts to JSON file"""
+    try:
+        with open(SCOUT_DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(scouts, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving scouts: {e}")
+        return False
+
 @app.get("/api/scouts")
 async def list_scouts(
     sort_by: str = "sxsw_years",
     limit: int = 10,
+    id: Optional[str] = None,
     is_verified: Optional[str] = None,
     services: Optional[str] = None,
     location: Optional[str] = None,
@@ -1476,6 +1487,10 @@ async def list_scouts(
     scouts = load_scouts()
     
     # Apply filters
+    # Filter by ID first (most specific filter)
+    if id:
+        scouts = [s for s in scouts if s.get('id') == id]
+    
     if is_verified is not None:
         verified = is_verified.lower() == 'true'
         scouts = [s for s in scouts if s.get('is_verified') == verified]
@@ -1511,6 +1526,47 @@ async def get_scout(scout_id: str):
         raise HTTPException(status_code=404, detail="Scout not found")
     
     return scout
+
+@app.post("/api/scouts")
+async def create_scout(data: dict):
+    """Create a new scout profile"""
+    scouts = load_scouts()
+    
+    import uuid
+    new_scout = {
+        "id": str(uuid.uuid4())[:24],
+        "created_date": datetime.now().isoformat(),
+        **data
+    }
+    
+    scouts.append(new_scout)
+    
+    if save_scouts(scouts):
+        return {"message": "Scout created successfully", "id": new_scout["id"], "scout": new_scout}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save scout")
+
+@app.put("/api/scouts/{scout_id}")
+async def update_scout(scout_id: str, data: dict):
+    """Update an existing scout profile"""
+    scouts = load_scouts()
+    
+    scout_index = next((i for i, s in enumerate(scouts) if s.get('id') == scout_id), None)
+    
+    if scout_index is None:
+        raise HTTPException(status_code=404, detail="Scout not found")
+    
+    # Update scout data
+    scouts[scout_index] = {
+        **scouts[scout_index],
+        **data,
+        "updated_date": datetime.now().isoformat()
+    }
+    
+    if save_scouts(scouts):
+        return {"message": "Scout updated successfully", "scout": scouts[scout_index]}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save scout")
 
 
 # ============ Booking Request Endpoints ============

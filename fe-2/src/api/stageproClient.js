@@ -606,6 +606,30 @@ export const stagepro = {
           throw error;
         }
       },
+      
+      update: async (id, data) => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/scouts/${id}`, {
+            method: "PUT",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            return result;
+          } else {
+            const error = await response.json();
+            throw new Error(error.detail || "Failed to update scout");
+          }
+        } catch (error) {
+          console.error("Error updating scout:", error);
+          throw error;
+        }
+      },
     },
     
     BookingRequest: {
