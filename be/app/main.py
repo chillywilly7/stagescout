@@ -406,7 +406,7 @@ def send_reset_email(email: str, code: str, user_name: str) -> bool:
         
         # Production mode - send actual email
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'StageScout - Password Reset Code'
+        msg['Subject'] = 'StagePros - Password Reset Code'
         msg['From'] = SMTP_FROM_EMAIL
         msg['To'] = email
         
@@ -414,7 +414,7 @@ def send_reset_email(email: str, code: str, user_name: str) -> bool:
         text = f"""
 Hello {user_name},
 
-You requested to reset your password for StageScout.
+You requested to reset your password for StagePros.
 
 Your password reset code is: {code}
 
@@ -423,7 +423,7 @@ This code will expire in {RESET_CODE_EXPIRE_MINUTES} minutes.
 If you did not request this password reset, please ignore this email.
 
 Best regards,
-The StageScout Team
+The StagePros Team
         """
         
         # HTML version
@@ -431,7 +431,7 @@ The StageScout Team
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0;">StageScout</h1>
+                <h1 style="color: white; margin: 0;">StagePros</h1>
             </div>
             <div style="padding: 30px; background-color: #f8f9fa;">
                 <h2 style="color: #333;">Password Reset Request</h2>
@@ -446,7 +446,7 @@ The StageScout Team
                 <p style="color: #999; font-size: 14px;">If you did not request this password reset, please ignore this email.</p>
             </div>
             <div style="padding: 20px; text-align: center; background-color: #1e293b;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2024 StageScout. All rights reserved.</p>
+                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 StagePros. All rights reserved.</p>
             </div>
         </body>
         </html>
@@ -641,7 +641,7 @@ def send_verification_email(email: str, code: str, user_name: str, user_type: st
         
         # Production mode - send actual email
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'StageScout - Email Verification Code'
+        msg['Subject'] = 'StagePros - Email Verification Code'
         msg['From'] = SMTP_FROM_EMAIL
         msg['To'] = email
         
@@ -651,7 +651,7 @@ def send_verification_email(email: str, code: str, user_name: str, user_type: st
         text = f"""
 Hello {user_name},
 
-Welcome to StageScout! Please verify your email to complete your {account_type} registration.
+Welcome to StagePros! Please verify your email to complete your {account_type} registration.
 
 Your verification code is: {code}
 
@@ -660,7 +660,7 @@ This code will expire in 15 minutes.
 If you did not create an account, please ignore this email.
 
 Best regards,
-The StageScout Team
+The StagePros Team
         """
         
         # HTML version
@@ -668,10 +668,10 @@ The StageScout Team
         <html>
         <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #E85D04 0%, #764ba2 100%); padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0;">StageScout</h1>
+                <h1 style="color: white; margin: 0;">StagePros</h1>
             </div>
             <div style="padding: 30px; background-color: #f8f9fa;">
-                <h2 style="color: #333;">Welcome to StageScout!</h2>
+                <h2 style="color: #333;">Welcome to StagePros!</h2>
                 <p style="color: #666;">Hello {user_name},</p>
                 <p style="color: #666;">Please verify your email to complete your {account_type} registration:</p>
                 <div style="text-align: center; padding: 20px;">
@@ -683,7 +683,7 @@ The StageScout Team
                 <p style="color: #999; font-size: 14px;">If you did not create an account, please ignore this email.</p>
             </div>
             <div style="padding: 20px; text-align: center; background-color: #1e293b;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2024 StageScout. All rights reserved.</p>
+                <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 StagePros. All rights reserved.</p>
             </div>
         </body>
         </html>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-StageScout Authentication API Tester
+StagePros Authentication API Tester
 Test the signup and login functionality directly
 """
 
@@ -269,7 +269,7 @@ def main():
     """Run all tests"""
     print(f"\n{Colors.BOLD}{Colors.BLUE}")
     print("╔════════════════════════════════════════╗")
-    print("║  StageScout Auth System - API Tester   ║")
+    print("║  StagePros Auth System - API Tester   ║")
     print("║     Testing Signup & Login Workflow    ║")
     print("╚════════════════════════════════════════╝")
     print(f"{Colors.RESET}")
