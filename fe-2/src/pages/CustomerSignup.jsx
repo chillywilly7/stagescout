@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -7,8 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Shield, Lock, User } from 'lucide-react';
+import { Loader2, Mail, Shield, Lock, User, Check, X, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+// Debounce hook for real-time validation
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function CustomerSignup() {
   const navigate = useNavigate();
@@ -18,60 +28,143 @@ export default function CustomerSignup() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [inputCode, setInputCode] = useState('');
-  const [accountId, setAccountId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleInfoSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  // Real-time validation states
+  const [emailStatus, setEmailStatus] = useState({ checking: false, available: null, message: '' });
+  const [phoneStatus, setPhoneStatus] = useState({ checking: false, available: null, message: '' });
+  const [nameValid, setNameValid] = useState(null);
 
-    try {
-      // Check if account exists
-      const existing = await base44.entities.CustomerAccount.filter({ email });
-      if (existing.length > 0) {
-        setError('An account with this email already exists. Please sign in.');
-        setLoading(false);
+  // Debounced values for API calls
+  const debouncedEmail = useDebounce(email, 500);
+  const debouncedPhone = useDebounce(phone, 500);
+
+  // Real-time email validation
+  useEffect(() => {
+    const checkEmail = async () => {
+      if (!debouncedEmail || !debouncedEmail.includes('@')) {
+        setEmailStatus({ checking: false, available: null, message: '' });
         return;
       }
+      
+      setEmailStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await base44.auth.checkEmail(debouncedEmail, 'customer');
+        if (result.exists) {
+          // Show which account type if different
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'pro' 
+            ? 'Email registered as Pro account' 
+            : 'Email already registered';
+          setEmailStatus({ checking: false, available: false, message });
+        } else {
+          setEmailStatus({ checking: false, available: true, message: 'Email available' });
+        }
+      } catch (err) {
+        setEmailStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkEmail();
+  }, [debouncedEmail]);
 
-      // Generate verification code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // Real-time phone validation
+  useEffect(() => {
+    const checkPhone = async () => {
+      const phoneDigits = phone.replace(/\D/g, '');
+      if (!debouncedPhone || phoneDigits.length < 10) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await base44.auth.checkPhone(debouncedPhone, 'customer');
+        if (result.exists) {
+          // Show which account type if different
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'pro' 
+            ? 'Phone registered as Pro account' 
+            : 'Phone already registered';
+          setPhoneStatus({ checking: false, available: false, message });
+        } else {
+          setPhoneStatus({ checking: false, available: true, message: 'Phone available' });
+        }
+      } catch (err) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkPhone();
+  }, [debouncedPhone]);
 
-      // Create account
-      const account = await base44.entities.CustomerAccount.create({
-        email,
-        name,
-        phone,
-        verification_code: code,
-        is_verified: false
-      });
+  // Real-time name validation
+  useEffect(() => {
+    if (!name) {
+      setNameValid(null);
+    } else if (name.trim().length >= 2) {
+      setNameValid(true);
+    } else {
+      setNameValid(false);
+    }
+  }, [name]);
 
-      setAccountId(account.id);
-      setVerificationCode(code);
+  // Validation status indicator component
+  const ValidationIndicator = ({ status, checking, message }) => {
+    if (checking) {
+      return (
+        <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    if (status === true) {
+      return (
+        <div className="flex items-center gap-1 text-green-400 text-xs mt-1">
+          <Check className="w-3 h-3" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    if (status === false) {
+      return (
+        <div className="flex items-center gap-1 text-red-400 text-xs mt-1">
+          <X className="w-3 h-3" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    return null;
+  };
 
-      // Send verification email
-      await base44.integrations.Core.SendEmail({
-        to: email,
-        subject: 'StagePros - Verify Your Email',
-        body: `
-          <h2>Welcome to StagePros!</h2>
-          <p>Hi ${name},</p>
-          <p>Your verification code is:</p>
-          <h1 style="font-size: 36px; font-weight: bold; color: #E85D04; letter-spacing: 8px;">${code}</h1>
-          <p>Enter this code to complete your account setup.</p>
-        `
-      });
+  const handleInfoSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
 
-      setStep('verify');
-    } catch (err) {
-      setError('Failed to create account. Please try again.');
+    // Validate all fields before proceeding
+    if (name.trim().length < 2) {
+      setError('Name must be at least 2 characters.');
+      return;
     }
 
-    setLoading(false);
+    if (emailStatus.available === false) {
+      setError('Please use a different email address.');
+      return;
+    }
+
+    if (phone && phone.trim() && phoneStatus.available === false) {
+      setError('Please use a different phone number.');
+      return;
+    }
+
+    // Wait for any pending checks
+    if (emailStatus.checking || phoneStatus.checking) {
+      setError('Please wait for validation to complete.');
+      return;
+    }
+
+    setStep('password');
   };
 
   const handleVerify = async (e) => {
@@ -79,51 +172,80 @@ export default function CustomerSignup() {
     setLoading(true);
     setError('');
 
-    if (inputCode !== verificationCode) {
-      setError('Invalid verification code. Please try again.');
-      setLoading(false);
-      return;
-    }
-
+    // Skip verification for now - go to password
     setStep('password');
     setLoading(false);
   };
+
+  // Password requirement checks (same strong requirements for all accounts)
+  const passwordChecks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*()_+\-=\[\]{};:'",.<>?/\\|`~]/.test(password),
+  };
+  const allPasswordChecksPassed = Object.values(passwordChecks).every(Boolean);
+  const passwordsMatch = password && confirmPassword && password === confirmPassword;
+
+  // Password requirement indicator
+  const PasswordRequirement = ({ met, label }) => (
+    <div className={`flex items-center gap-2 text-xs ${met ? 'text-green-400' : 'text-gray-500'}`}>
+      {met ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+      <span>{label}</span>
+    </div>
+  );
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (!allPasswordChecksPassed) {
+      setError('Please meet all password requirements.');
       setLoading(false);
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (!passwordsMatch) {
       setError('Passwords do not match.');
       setLoading(false);
       return;
     }
 
     try {
-      await base44.entities.CustomerAccount.update(accountId, {
-        password,
-        is_verified: true
-      });
-
+      // Complete signup with backend - creates account with hashed password
+      const result = await base44.auth.signup(email, password, name, phone, 'customer');
+      
+      // Set session
+      authState.setSession(email, 'customer');
+      window.dispatchEvent(new Event('storage'));
+      
       setStep('success');
     } catch (err) {
-      setError('Failed to set password. Please try again.');
+      setError(err.message || 'Failed to create account. Please try again.');
     }
 
     setLoading(false);
   };
 
   const handleGoToDashboard = () => {
-    authState.setSession(email, 'customer');
-    window.dispatchEvent(new Event('storage'));
     navigate(createPageUrl('CustomerDashboard') + `?email=${encodeURIComponent(email)}`);
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      await base44.auth.customer.sendVerification(email, name);
+      setError(''); // Clear any previous error
+      alert('Verification code resent! Check your email.');
+    } catch (err) {
+      setError(err.message || 'Failed to resend code. Please try again.');
+    }
+    
+    setLoading(false);
   };
 
   return (
@@ -158,54 +280,114 @@ export default function CustomerSignup() {
                 <form onSubmit={handleInfoSubmit} className="space-y-4">
                   <div>
                     <Label className="text-white mb-2 block">Full Name</Label>
-                    <Input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="John Doe"
-                      className="bg-white/5 border-white/20 text-white"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="John Doe"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          nameValid === true ? 'border-green-500/50' : 
+                          nameValid === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {nameValid !== null && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {nameValid ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {nameValid === false && (
+                      <p className="text-red-400 text-xs mt-1">Name must be at least 2 characters</p>
+                    )}
                   </div>
 
                   <div>
                     <Label className="text-white mb-2 block">Email Address</Label>
-                    <Input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="john@example.com"
-                      className="bg-white/5 border-white/20 text-white"
+                    <div className="relative">
+                      <Input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="john@example.com"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          emailStatus.available === true ? 'border-green-500/50' : 
+                          emailStatus.available === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {(emailStatus.checking || emailStatus.available !== null) && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {emailStatus.checking ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          ) : emailStatus.available ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ValidationIndicator 
+                      status={emailStatus.available} 
+                      checking={emailStatus.checking} 
+                      message={emailStatus.message} 
                     />
                   </div>
 
                   <div>
-                    <Label className="text-white mb-2 block">Phone Number</Label>
-                    <Input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="(512) 555-0123"
-                      className="bg-white/5 border-white/20 text-white"
+                    <Label className="text-white mb-2 block">Phone Number (optional)</Label>
+                    <div className="relative">
+                      <Input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="(512) 555-0123"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          phoneStatus.available === true ? 'border-green-500/50' : 
+                          phoneStatus.available === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {(phoneStatus.checking || phoneStatus.available !== null) && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {phoneStatus.checking ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          ) : phoneStatus.available ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ValidationIndicator 
+                      status={phoneStatus.available} 
+                      checking={phoneStatus.checking} 
+                      message={phoneStatus.message} 
                     />
                   </div>
 
                   {error && (
-                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
                       {error}
                     </div>
                   )}
 
                   <Button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white"
+                    disabled={loading || emailStatus.checking || phoneStatus.checking || emailStatus.available === false || (phone && phoneStatus.available === false)}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
-                    {loading ? (
+                    {emailStatus.checking || phoneStatus.checking ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Creating Account...
+                        Validating...
                       </>
                     ) : (
                       'Continue'
@@ -272,6 +454,25 @@ export default function CustomerSignup() {
                       'Verify Email'
                     )}
                   </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleResendCode}
+                    disabled={loading}
+                    className="w-full text-gray-400 hover:text-white"
+                  >
+                    Resend Code
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('info')}
+                    className="w-full text-gray-400 hover:text-white"
+                  >
+                    Use Different Email
+                  </Button>
                 </form>
               </CardContent>
             </Card>
@@ -292,44 +493,88 @@ export default function CustomerSignup() {
                 <form onSubmit={handlePasswordSubmit} className="space-y-4">
                   <div>
                     <Label className="text-white mb-2 block">Password</Label>
-                    <Input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="At least 6 characters"
-                      className="bg-white/5 border-white/20 text-white"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          password && (allPasswordChecksPassed ? 'border-green-500/50' : 'border-yellow-500/50')
+                        }`}
+                      />
+                      {password && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {allPasswordChecksPassed ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-yellow-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Password requirements */}
+                    {password && (
+                      <div className="mt-3 p-3 bg-white/5 rounded-lg space-y-1.5">
+                        <p className="text-xs text-gray-400 mb-2 font-medium">Password Requirements:</p>
+                        <PasswordRequirement met={passwordChecks.length} label="At least 8 characters" />
+                        <PasswordRequirement met={passwordChecks.uppercase} label="One uppercase letter (A-Z)" />
+                        <PasswordRequirement met={passwordChecks.lowercase} label="One lowercase letter (a-z)" />
+                        <PasswordRequirement met={passwordChecks.number} label="One number (0-9)" />
+                        <PasswordRequirement met={passwordChecks.special} label="One special character (!@#$%^&* etc)" />
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <Label className="text-white mb-2 block">Confirm Password</Label>
-                    <Input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Re-enter password"
-                      className="bg-white/5 border-white/20 text-white"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          confirmPassword && (passwordsMatch ? 'border-green-500/50' : 'border-red-500/50')
+                        }`}
+                      />
+                      {confirmPassword && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {passwordsMatch ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {confirmPassword && !passwordsMatch && (
+                      <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
+                    )}
+                    {confirmPassword && passwordsMatch && (
+                      <p className="text-green-400 text-xs mt-1">Passwords match</p>
+                    )}
                   </div>
 
                   {error && (
-                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
                       {error}
                     </div>
                   )}
 
                   <Button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white"
+                    disabled={loading || !allPasswordChecksPassed || !passwordsMatch}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Setting Password...
+                        Creating Account...
                       </>
                     ) : (
                       'Complete Signup'

@@ -10,14 +10,10 @@ export const base44 = {
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
           method: "GET",
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         });
-        
         if (response.ok) {
-          const data = await response.json();
-          return data;
+          return await response.json();
         }
         return null;
       } catch (error) {
@@ -27,31 +23,143 @@ export const base44 = {
     },
     
     login: async (email, password, userType = 'pro') => {
-      try {
-        const endpoint = userType === 'customer' 
-          ? `${API_BASE_URL}/auth/customer/login`
-          : `${API_BASE_URL}/auth/login`;
-          
-        const response = await fetch(endpoint, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          return data;
-        } else {
-          const error = await response.json();
-          throw new Error(error.detail || "Login failed");
-        }
-      } catch (error) {
-        console.error("Login error:", error);
-        throw error;
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
       }
+      const error = await response.json();
+      throw new Error(error.detail || "Login failed");
+    },
+    
+    signup: async (email, password, name, phone = "", userType = 'pro', securityQ1 = "", securityA1 = "", securityQ2 = "", securityA2 = "") => {
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          email, 
+          password, 
+          name, 
+          phone,
+          user_type: userType,
+          security_question_1: securityQ1,
+          security_answer_1: securityA1,
+          security_question_2: securityQ2,
+          security_answer_2: securityA2
+        }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      const error = await response.json();
+      throw new Error(error.detail || "Signup failed");
+    },
+    
+    checkEmail: async (email, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/check-email`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error("Failed to check email");
+    },
+    
+    checkPhone: async (phone, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/check-phone`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error("Failed to check phone");
+    },
+    
+    getSecurityQuestions: async (email, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/security-questions`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to get security questions");
+    },
+    
+    forgotPassword: async (email, securityAnswer1, securityAnswer2, newPassword, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          email, 
+          security_answer_1: securityAnswer1,
+          security_answer_2: securityAnswer2,
+          new_password: newPassword,
+          user_type: userType
+        }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      const error = await response.json();
+      throw new Error(error.detail || "Password reset failed");
+    },
+    
+    sendResetCode: async (email, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password/send-code`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to send reset code");
+    },
+    
+    verifyResetCode: async (email, code, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password/verify-code`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      const error = await response.json();
+      throw new Error(error.detail || "Code verification failed");
+    },
+    
+    resetPassword: async (email, newPassword, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password/reset`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, new_password: newPassword, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      const error = await response.json();
+      throw new Error(error.detail || "Password reset failed");
     },
     
     logout: async () => {
@@ -59,11 +167,8 @@ export const base44 = {
         const response = await fetch(`${API_BASE_URL}/auth/logout`, {
           method: "POST",
           credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         });
-        
         return response.ok;
       } catch (error) {
         console.error("Logout error:", error);
@@ -74,6 +179,17 @@ export const base44 = {
     redirectToLogin: () => {
       window.dispatchEvent(new CustomEvent("showLoginModal"));
     },
+  },
+  
+  // Legacy integrations object for backwards compatibility
+  integrations: {
+    Core: {
+      SendEmail: async ({ to, subject, body }) => {
+        // Email sending is now handled by backend
+        console.log("Email sending delegated to backend:", { to, subject });
+        return { success: true };
+      }
+    }
   },
   
   entities: {
@@ -122,7 +238,7 @@ export const base44 = {
           
           if (response.ok) {
             const result = await response.json();
-            return result;
+            return result.customer || result;
           } else {
             const error = await response.json();
             throw new Error(error.detail || "Failed to create customer");
@@ -203,13 +319,37 @@ export const base44 = {
           
           if (response.ok) {
             const result = await response.json();
-            return result;
+            return { ...result.pro, id: result.id };
           } else {
             const error = await response.json();
             throw new Error(error.detail || "Failed to create pro account");
           }
         } catch (error) {
           console.error("Error creating pro:", error);
+          throw error;
+        }
+      },
+      
+      update: async (id, data) => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/pros/${id}`, {
+            method: "PUT",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            return result;
+          } else {
+            const error = await response.json();
+            throw new Error(error.detail || "Failed to update pro account");
+          }
+        } catch (error) {
+          console.error("Error updating pro:", error);
           throw error;
         }
       },

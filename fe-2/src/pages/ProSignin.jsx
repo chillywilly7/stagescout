@@ -7,21 +7,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, LogIn, Mail, Shield, Lock } from 'lucide-react';
+import { Loader2, LogIn, Mail, Shield, Lock, HelpCircle, KeyRound } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function ProSignin() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('signin'); // 'signin', 'forgot', 'verify', 'reset'
+  // Modes: 'signin', 'forgot-choice', 'forgot-security', 'forgot-email', 'verify', 'reset'
+  const [mode, setMode] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [inputCode, setInputCode] = useState('');
-  const [accountId, setAccountId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Security questions state
+  const [securityQuestions, setSecurityQuestions] = useState([]);
+  const [securityAnswer1, setSecurityAnswer1] = useState('');
+  const [securityAnswer2, setSecurityAnswer2] = useState('');
 
   const handleSignin = async (e) => {
     e.preventDefault();
@@ -29,76 +33,73 @@ export default function ProSignin() {
     setError('');
 
     try {
-      // Find account
-      const accounts = await base44.entities.ProAccount.filter({ email, is_verified: true });
+      // Use backend login endpoint with password verification
+      const result = await base44.auth.login(email, password, 'pro');
       
-      if (accounts.length === 0) {
-        setError('Account not found. Please sign up first.');
-        setLoading(false);
-        return;
-      }
-
-      const account = accounts[0];
-
-      // Check password
-      if (account.password !== password) {
-        setError('Incorrect password. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      // Create authenticated session
+      // Set session
       authState.setSession(email, 'pro');
       window.dispatchEvent(new Event('storage'));
       
       // Redirect to dashboard
       navigate(createPageUrl('ProDashboard') + `?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      setError('Sign in failed. Please try again.');
+      setError(err.message || 'Sign in failed. Please try again.');
     }
     
     setLoading(false);
   };
 
-  const handleForgotPassword = async (e) => {
+  const handleForgotPasswordChoice = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const accounts = await base44.entities.ProAccount.filter({ email, is_verified: true });
+      // Check if email exists and get security questions
+      const result = await base44.auth.pro.getSecurityQuestions(email);
       
-      if (accounts.length === 0) {
-        setError('No account found with this email.');
-        setLoading(false);
-        return;
+      if (result.questions && result.questions.length > 0) {
+        setSecurityQuestions(result.questions);
+        setMode('forgot-choice');
+      } else {
+        // No security questions, go straight to email verification
+        await handleSendEmailCode();
       }
+    } catch (err) {
+      setError(err.message || 'No account found with this email.');
+    }
+    
+    setLoading(false);
+  };
 
-      const account = accounts[0];
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      await base44.entities.ProAccount.update(account.id, {
-        verification_code: code
-      });
+  const handleSendEmailCode = async () => {
+    setLoading(true);
+    setError('');
 
-      setAccountId(account.id);
-      setVerificationCode(code);
-
-      await base44.integrations.Core.SendEmail({
-        to: email,
-        subject: 'StageLink - Password Reset Code',
-        body: `
-          <h2>Password Reset Request</h2>
-          <p>Your verification code is:</p>
-          <h1 style="font-size: 36px; font-weight: bold; color: #E85D04; letter-spacing: 8px;">${code}</h1>
-          <p>Enter this code to reset your password.</p>
-          <p>This code will expire in 10 minutes.</p>
-        `
-      });
-
+    try {
+      await base44.auth.pro.sendResetCode(email);
       setMode('verify');
     } catch (err) {
-      setError('Failed to send reset code. Please try again.');
+      setError(err.message || 'Failed to send reset code. Please try again.');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleSecurityQuestionSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      await base44.auth.pro.resetWithSecurityQuestions(
+        email,
+        securityAnswer1,
+        securityAnswer2
+      );
+      setMode('reset');
+    } catch (err) {
+      setError(err.message || 'Incorrect answers. Please try again.');
     }
     
     setLoading(false);
@@ -109,13 +110,13 @@ export default function ProSignin() {
     setLoading(true);
     setError('');
 
-    if (inputCode !== verificationCode) {
-      setError('Invalid verification code. Please try again.');
-      setLoading(false);
-      return;
+    try {
+      await base44.auth.pro.verifyResetCode(email, inputCode);
+      setMode('reset');
+    } catch (err) {
+      setError(err.message || 'Invalid or expired code. Please try again.');
     }
-
-    setMode('reset');
+    
     setLoading(false);
   };
 
@@ -124,8 +125,11 @@ export default function ProSignin() {
     setLoading(true);
     setError('');
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    // Password requirements: 8+ chars, uppercase, lowercase, number, special char
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};:'",.<>?/\\|`~]).{8,}$/;
+    
+    if (!passwordRegex.test(newPassword)) {
+      setError('Password must be at least 8 characters with uppercase, lowercase, number, and special character');
       setLoading(false);
       return;
     }
@@ -137,21 +141,31 @@ export default function ProSignin() {
     }
 
     try {
-      await base44.entities.ProAccount.update(accountId, {
-        password: newPassword
-      });
+      await base44.auth.pro.resetPassword(email, newPassword);
 
       setMode('signin');
       setPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
+      setInputCode('');
+      setSecurityAnswer1('');
+      setSecurityAnswer2('');
       setError('');
       alert('Password reset successful! Please sign in with your new password.');
     } catch (err) {
-      setError('Failed to reset password. Please try again.');
+      setError(err.message || 'Failed to reset password. Please try again.');
     }
     
     setLoading(false);
+  };
+
+  const resetToSignin = () => {
+    setMode('signin');
+    setError('');
+    setInputCode('');
+    setSecurityAnswer1('');
+    setSecurityAnswer2('');
+    setSecurityQuestions([]);
   };
 
   return (
@@ -232,7 +246,7 @@ export default function ProSignin() {
                 <div className="text-center pt-4 space-y-2">
                   <button
                     type="button"
-                    onClick={() => setMode('forgot')}
+                    onClick={() => setMode('forgot-email-input')}
                     className="text-gray-400 hover:text-burnt-orange text-sm transition-colors"
                   >
                     Forgot password?
@@ -252,7 +266,7 @@ export default function ProSignin() {
           </Card>
           )}
 
-          {mode === 'forgot' && (
+          {mode === 'forgot-email-input' && (
             <Card className="bg-white/5 border-white/10">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
@@ -260,11 +274,11 @@ export default function ProSignin() {
                   Reset Password
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Enter your email to receive a verification code
+                  Enter your email to begin password reset
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleForgotPassword} className="space-y-4">
+                <form onSubmit={handleForgotPasswordChoice} className="space-y-4">
                   <div>
                     <Label className="text-white mb-2 block">Email Address</Label>
                     <Input
@@ -291,20 +305,154 @@ export default function ProSignin() {
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Sending Code...
+                        Checking...
                       </>
                     ) : (
-                      'Send Reset Code'
+                      'Continue'
                     )}
                   </Button>
 
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setMode('signin')}
+                    onClick={resetToSignin}
                     className="w-full text-gray-400"
                   >
                     Back to Sign In
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {mode === 'forgot-choice' && (
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-burnt-orange" />
+                  Choose Reset Method
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  How would you like to reset your password?
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button
+                  onClick={() => setMode('forgot-security')}
+                  className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 h-auto py-4"
+                >
+                  <div className="flex items-center gap-3 w-full">
+                    <HelpCircle className="w-6 h-6 text-neon-teal" />
+                    <div className="text-left">
+                      <div className="font-semibold">Answer Security Questions</div>
+                      <div className="text-sm text-gray-400">Use your pre-set security answers</div>
+                    </div>
+                  </div>
+                </Button>
+
+                <Button
+                  onClick={handleSendEmailCode}
+                  disabled={loading}
+                  className="w-full bg-white/10 hover:bg-white/20 text-white border border-white/20 h-auto py-4"
+                >
+                  <div className="flex items-center gap-3 w-full">
+                    <Mail className="w-6 h-6 text-burnt-orange" />
+                    <div className="text-left">
+                      <div className="font-semibold">
+                        {loading ? 'Sending Code...' : 'Email Verification Code'}
+                      </div>
+                      <div className="text-sm text-gray-400">Get a code sent to {email}</div>
+                    </div>
+                  </div>
+                </Button>
+
+                {error && (
+                  <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={resetToSignin}
+                  className="w-full text-gray-400"
+                >
+                  Back to Sign In
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {mode === 'forgot-security' && (
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-neon-teal" />
+                  Security Questions
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Answer both questions to reset your password
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSecurityQuestionSubmit} className="space-y-4">
+                  {securityQuestions[0] && (
+                    <div>
+                      <Label className="text-white mb-2 block">{securityQuestions[0]}</Label>
+                      <Input
+                        type="text"
+                        required
+                        value={securityAnswer1}
+                        onChange={(e) => setSecurityAnswer1(e.target.value)}
+                        placeholder="Your answer"
+                        className="bg-white/5 border-white/20 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {securityQuestions[1] && (
+                    <div>
+                      <Label className="text-white mb-2 block">{securityQuestions[1]}</Label>
+                      <Input
+                        type="text"
+                        required
+                        value={securityAnswer2}
+                        onChange={(e) => setSecurityAnswer2(e.target.value)}
+                        placeholder="Your answer"
+                        className="bg-white/5 border-white/20 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-neon-teal hover:bg-neon-teal/90 text-black font-bold"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Verifying...
+                      </>
+                    ) : (
+                      'Verify Answers'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setMode('forgot-choice')}
+                    className="w-full text-gray-400"
+                  >
+                    Use Different Method
                   </Button>
                 </form>
               </CardContent>
@@ -361,10 +509,20 @@ export default function ProSignin() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setMode('forgot')}
+                    onClick={handleSendEmailCode}
+                    disabled={loading}
+                    className="w-full text-gray-400 hover:text-white"
+                  >
+                    Resend Code
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setMode('forgot-choice')}
                     className="w-full text-gray-400"
                   >
-                    Use Different Email
+                    Use Different Method
                   </Button>
                 </form>
               </CardContent>
@@ -379,7 +537,7 @@ export default function ProSignin() {
                   Create New Password
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Enter your new password twice
+                  Must have 8+ characters, uppercase, lowercase, number, and special character
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -389,10 +547,10 @@ export default function ProSignin() {
                     <Input
                       type="password"
                       required
-                      minLength={6}
+                      minLength={8}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="At least 6 characters"
+                      placeholder="Create a strong password"
                       className="bg-white/5 border-white/20 text-white"
                     />
                   </div>

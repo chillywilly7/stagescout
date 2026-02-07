@@ -1,0 +1,28 @@
+[
+  {
+    "email": "daniel@user.com",
+    "password": "$2b$12$BJnMOJgOk2evRNbfNLWx.u6TeLb9p/hVI.byTunCH7597loxLFk9O",
+    "verification_code": "",
+    "is_verified": true,
+    "scout_id": "",
+    "id": "6975a116b01fd390b09c0cab",
+    "created_date": "2026-01-25T04:50:30.265000",
+    "updated_date": "2026-01-25T04:50:30.265000",
+    "created_by_id": "69758739094dbadd0fd499c1",
+    "created_by": "ric.solis96@gmail.com",
+    "is_sample": false
+  },
+  {
+    "email": "ric.solis96@gmail.com",
+    "password": "$2b$12$Na4TuaGwRp4LBcVmwRWYJ.T1q9iXVH81W56cjWo3EosVAS5sS2492",
+    "verification_code": "583737",
+    "is_verified": true,
+    "scout_id": "6975944e2dd75c109038b158",
+    "id": "6975935c2e296298556410d7",
+    "created_date": "2026-01-25T03:51:56.845000",
+    "updated_date": "2026-01-25T04:12:52.622000",
+    "created_by_id": "69758739094dbadd0fd499c1",
+    "created_by": "ric.solis96@gmail.com",
+    "is_sample": false
+  }
+]

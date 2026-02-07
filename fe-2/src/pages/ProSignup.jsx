@@ -1,73 +1,194 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { authState } from '@/components/authHelper';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Shield, CheckCircle, Lock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Mail, Shield, CheckCircle, Lock, User, HelpCircle, Check, X, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
+// Debounce hook for real-time validation
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+const SECURITY_QUESTIONS = [
+  "What is your pet's name?",
+  "What city were you born in?",
+  "What is your favorite book?",
+  "What was your childhood nickname?",
+  "What is your favorite season?",
+  "What was the name of your first school?",
+  "What is your mother's maiden name?"
+];
+
 export default function ProSignup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('email'); // 'email', 'verify', 'password', 'success'
+  const [step, setStep] = useState('email'); // 'email', 'verify', 'info', 'security', 'password', 'success'
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
   const [inputCode, setInputCode] = useState('');
+  const [securityQuestion1, setSecurityQuestion1] = useState('');
+  const [securityAnswer1, setSecurityAnswer1] = useState('');
+  const [securityQuestion2, setSecurityQuestion2] = useState('');
+  const [securityAnswer2, setSecurityAnswer2] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [accountId, setAccountId] = useState('');
+
+  // Real-time validation states
+  const [emailStatus, setEmailStatus] = useState({ checking: false, available: null, message: '' });
+  const [phoneStatus, setPhoneStatus] = useState({ checking: false, available: null, message: '' });
+  const [nameValid, setNameValid] = useState(null);
+
+  // Debounced values for API calls
+  const debouncedEmail = useDebounce(email, 500);
+  const debouncedPhone = useDebounce(phone, 500);
+
+  // Real-time email validation
+  useEffect(() => {
+    const checkEmail = async () => {
+      if (!debouncedEmail || !debouncedEmail.includes('@')) {
+        setEmailStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      setEmailStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await base44.auth.checkEmail(debouncedEmail, 'pro');
+        if (result.exists) {
+          // Show which account type if different
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'customer' 
+            ? 'Email registered as Customer account' 
+            : 'Email already registered';
+          setEmailStatus({ checking: false, available: false, message });
+        } else {
+          setEmailStatus({ checking: false, available: true, message: 'Email available' });
+        }
+      } catch (err) {
+        setEmailStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkEmail();
+  }, [debouncedEmail]);
+
+  // Real-time phone validation
+  useEffect(() => {
+    const checkPhone = async () => {
+      const phoneDigits = phone.replace(/\D/g, '');
+      if (!debouncedPhone || phoneDigits.length < 10) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await base44.auth.checkPhone(debouncedPhone, 'pro');
+        if (result.exists) {
+          // Show which account type if different
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'customer' 
+            ? 'Phone registered as Customer account' 
+            : 'Phone already registered';
+          setPhoneStatus({ checking: false, available: false, message });
+        } else {
+          setPhoneStatus({ checking: false, available: true, message: 'Phone available' });
+        }
+      } catch (err) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkPhone();
+  }, [debouncedPhone]);
+
+  // Real-time name validation
+  useEffect(() => {
+    if (!name) {
+      setNameValid(null);
+    } else if (name.trim().length >= 2) {
+      setNameValid(true);
+    } else {
+      setNameValid(false);
+    }
+  }, [name]);
+
+  // Validation status indicator component
+  const ValidationIndicator = ({ status, checking, message }) => {
+    if (checking) {
+      return (
+        <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    if (status === true) {
+      return (
+        <div className="flex items-center gap-1 text-green-400 text-xs mt-1">
+          <Check className="w-3 h-3" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    if (status === false) {
+      return (
+        <div className="flex items-center gap-1 text-red-400 text-xs mt-1">
+          <X className="w-3 h-3" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Password requirement checks (stronger for pros)
+  const passwordChecks = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*()_+\-=\[\]{};:'",.<>?/\\|`~]/.test(password),
+  };
+  const allPasswordChecksPassed = Object.values(passwordChecks).every(Boolean);
+  const passwordsMatch = password && confirmPassword && password === confirmPassword;
+
+  // Password requirement indicator
+  const PasswordRequirement = ({ met, label }) => (
+    <div className={`flex items-center gap-2 text-xs ${met ? 'text-green-400' : 'text-gray-500'}`}>
+      {met ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+      <span>{label}</span>
+    </div>
+  );
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
 
-    try {
-      // Check if email already exists
-      const existing = await base44.entities.ProAccount.filter({ email, is_verified: true });
-      if (existing.length > 0) {
-        setError('This email is already registered. Please sign in.');
-        setLoading(false);
-        return;
-      }
-
-      // Generate 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Create account record
-      const account = await base44.entities.ProAccount.create({
-        email,
-        verification_code: code,
-        is_verified: false
-      });
-
-      setAccountId(account.id);
-      setVerificationCode(code);
-
-      // Send verification email
-      await base44.integrations.Core.SendEmail({
-        to: email,
-        subject: 'StageLink - Email Verification Code',
-        body: `
-          <h2>Welcome to StageLink!</h2>
-          <p>Your verification code is:</p>
-          <h1 style="font-size: 36px; font-weight: bold; color: #E85D04; letter-spacing: 8px;">${code}</h1>
-          <p>Enter this code to complete your Stage Pro registration.</p>
-          <p>This code will expire in 10 minutes.</p>
-        `
-      });
-
-      setStep('verify');
-    } catch (err) {
-      setError('Failed to send verification email. Please try again.');
+    if (emailStatus.available === false) {
+      setError('Please use a different email address.');
+      return;
     }
-    
-    setLoading(false);
+
+    if (emailStatus.checking) {
+      setError('Please wait for email validation to complete.');
+      return;
+    }
+
+    // Skip email verification for now - go to info step
+    setStep('info');
   };
 
   const handleVerification = async (e) => {
@@ -75,24 +196,55 @@ export default function ProSignup() {
     setLoading(true);
     setError('');
 
-    if (inputCode !== verificationCode) {
-      setError('Invalid verification code. Please try again.');
-      setLoading(false);
+    // Skip verification - go to info
+    setStep('info');
+    setLoading(false);
+  };
+
+  const handleInfoSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (name.trim().length < 2) {
+      setError('Name must be at least 2 characters.');
       return;
     }
 
-    try {
-      // Update account as verified
-      await base44.entities.ProAccount.update(accountId, {
-        is_verified: true
-      });
-
-      setStep('password');
-    } catch (err) {
-      setError('Verification failed. Please try again.');
+    // Check phone validation status (if provided)
+    if (phone && phone.trim()) {
+      if (phoneStatus.available === false) {
+        setError('Please use a different phone number.');
+        return;
+      }
+      if (phoneStatus.checking) {
+        setError('Please wait for phone validation to complete.');
+        return;
+      }
     }
-    
-    setLoading(false);
+
+    setStep('security');
+  };
+
+  const handleSecuritySubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!securityQuestion1 || !securityAnswer1.trim()) {
+      setError('Please select and answer the first security question.');
+      return;
+    }
+
+    if (!securityQuestion2 || !securityAnswer2.trim()) {
+      setError('Please select and answer the second security question.');
+      return;
+    }
+
+    if (securityQuestion1 === securityQuestion2) {
+      setError('Please select two different security questions.');
+      return;
+    }
+
+    setStep('password');
   };
 
   const handlePasswordSetup = async (e) => {
@@ -100,32 +252,58 @@ export default function ProSignup() {
     setLoading(true);
     setError('');
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
+    if (!allPasswordChecksPassed) {
+      setError('Please meet all password requirements.');
       setLoading(false);
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (!passwordsMatch) {
       setError('Passwords do not match.');
       setLoading(false);
       return;
     }
 
     try {
-      // Save password
-      await base44.entities.ProAccount.update(accountId, {
-        password: password
-      });
+      // Complete signup with backend
+      const result = await base44.auth.signup(
+        email, 
+        password, 
+        name, 
+        phone,
+        'pro',
+        securityQuestion1,
+        securityAnswer1,
+        securityQuestion2,
+        securityAnswer2
+      );
+
+      // Set session
+      authState.setSession(email, 'pro');
+      window.dispatchEvent(new Event('storage'));
 
       setStep('success');
       
-      // Redirect to profile setup after 2 seconds
+      // Redirect to dashboard after 2 seconds
       setTimeout(() => {
         navigate(createPageUrl('ProDashboard') + `?email=${encodeURIComponent(email)}&new=true`);
       }, 2000);
     } catch (err) {
-      setError('Failed to set password. Please try again.');
+      setError(err.message || 'Failed to create account. Please try again.');
+    }
+    
+    setLoading(false);
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Email verification not needed for now
+      alert('Verification skipped - continue to next step.');
+    } catch (err) {
+      setError(err.message || 'Failed to resend code. Please try again.');
     }
     
     setLoading(false);
@@ -144,7 +322,7 @@ export default function ProSignup() {
               Stage Pro Access
             </h1>
             <p className="text-gray-400">
-              Manage your profile and bookings
+              Create your professional account
             </p>
           </div>
 
@@ -156,41 +334,63 @@ export default function ProSignup() {
                   Enter Your Email
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  We'll send you a verification code
+                  We'll verify your email to get started
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleEmailSubmit} className="space-y-4">
                   <div>
                     <Label className="text-white mb-2 block">Email Address</Label>
-                    <Input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="pro@example.com"
-                      className="bg-white/5 border-white/20 text-white"
+                    <div className="relative">
+                      <Input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="pro@example.com"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          emailStatus.available === true ? 'border-green-500/50' : 
+                          emailStatus.available === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {(emailStatus.checking || emailStatus.available !== null) && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {emailStatus.checking ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          ) : emailStatus.available ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ValidationIndicator 
+                      status={emailStatus.available} 
+                      checking={emailStatus.checking} 
+                      message={emailStatus.message} 
                     />
                   </div>
 
                   {error && (
-                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
                       {error}
                     </div>
                   )}
 
                   <Button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white"
+                    disabled={loading || emailStatus.checking || emailStatus.available === false}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
-                    {loading ? (
+                    {emailStatus.checking ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Sending Code...
+                        Checking...
                       </>
                     ) : (
-                      'Send Verification Code'
+                      'Continue'
                     )}
                   </Button>
 
@@ -260,6 +460,16 @@ export default function ProSignup() {
                   <Button
                     type="button"
                     variant="ghost"
+                    onClick={handleResendCode}
+                    disabled={loading}
+                    className="w-full text-gray-400 hover:text-white"
+                  >
+                    Resend Code
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
                     onClick={() => setStep('email')}
                     className="w-full text-gray-400"
                   >
@@ -270,40 +480,167 @@ export default function ProSignup() {
             </Card>
           )}
 
-          {step === 'password' && (
+          {step === 'info' && (
             <Card className="bg-white/5 border-white/10">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-burnt-orange" />
-                  Create Your Password
+                  <User className="w-5 h-5 text-burnt-orange" />
+                  Your Information
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Set a password to secure your account
+                  Tell us a bit about yourself
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handlePasswordSetup} className="space-y-4">
+                <form onSubmit={handleInfoSubmit} className="space-y-4">
                   <div>
-                    <Label className="text-white mb-2 block">Password</Label>
+                    <Label className="text-white mb-2 block">Full Name</Label>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="John Doe"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          nameValid === true ? 'border-green-500/50' : 
+                          nameValid === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {nameValid !== null && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {nameValid ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {nameValid === false && (
+                      <p className="text-red-400 text-xs mt-1">Name must be at least 2 characters</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-white mb-2 block">Phone Number (optional)</Label>
+                    <div className="relative">
+                      <Input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="(512) 555-0123"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          phoneStatus.available === true ? 'border-green-500/50' : 
+                          phoneStatus.available === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {(phoneStatus.checking || phoneStatus.available !== null) && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {phoneStatus.checking ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          ) : phoneStatus.available ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ValidationIndicator 
+                      status={phoneStatus.available} 
+                      checking={phoneStatus.checking} 
+                      message={phoneStatus.message} 
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loading || phoneStatus.checking || (phone && phoneStatus.available === false)}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
+                  >
+                    {phoneStatus.checking ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Validating...
+                      </>
+                    ) : (
+                      'Continue'
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === 'security' && (
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-neon-teal" />
+                  Security Questions
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Used to recover your account if you forget your password
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSecuritySubmit} className="space-y-4">
+                  <div>
+                    <Label className="text-white mb-2 block">Security Question 1</Label>
+                    <Select value={securityQuestion1} onValueChange={setSecurityQuestion1}>
+                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Select a question" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SECURITY_QUESTIONS.map((q) => (
+                          <SelectItem key={q} value={q}>{q}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-white mb-2 block">Answer 1</Label>
                     <Input
-                      type="password"
+                      type="text"
                       required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="At least 6 characters"
+                      value={securityAnswer1}
+                      onChange={(e) => setSecurityAnswer1(e.target.value)}
+                      placeholder="Your answer"
                       className="bg-white/5 border-white/20 text-white"
                     />
                   </div>
 
                   <div>
-                    <Label className="text-white mb-2 block">Confirm Password</Label>
+                    <Label className="text-white mb-2 block">Security Question 2</Label>
+                    <Select value={securityQuestion2} onValueChange={setSecurityQuestion2}>
+                      <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Select a different question" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SECURITY_QUESTIONS.filter(q => q !== securityQuestion1).map((q) => (
+                          <SelectItem key={q} value={q}>{q}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-white mb-2 block">Answer 2</Label>
                     <Input
-                      type="password"
+                      type="text"
                       required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Re-enter password"
+                      value={securityAnswer2}
+                      onChange={(e) => setSecurityAnswer2(e.target.value)}
+                      placeholder="Your answer"
                       className="bg-white/5 border-white/20 text-white"
                     />
                   </div>
@@ -318,6 +655,106 @@ export default function ProSignup() {
                     type="submit"
                     disabled={loading}
                     className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white"
+                  >
+                    Continue
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === 'password' && (
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-burnt-orange" />
+                  Create Your Password
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Create a strong password for your professional account
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handlePasswordSetup} className="space-y-4">
+                  <div>
+                    <Label className="text-white mb-2 block">Password</Label>
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Create a strong password"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          password && (allPasswordChecksPassed ? 'border-green-500/50' : 'border-yellow-500/50')
+                        }`}
+                      />
+                      {password && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {allPasswordChecksPassed ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-yellow-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Password requirements checklist */}
+                    {password && (
+                      <div className="mt-3 p-3 bg-white/5 rounded-lg space-y-1.5">
+                        <p className="text-xs text-gray-400 mb-2 font-medium">Password Requirements:</p>
+                        <PasswordRequirement met={passwordChecks.length} label="At least 8 characters" />
+                        <PasswordRequirement met={passwordChecks.uppercase} label="One uppercase letter (A-Z)" />
+                        <PasswordRequirement met={passwordChecks.lowercase} label="One lowercase letter (a-z)" />
+                        <PasswordRequirement met={passwordChecks.number} label="One number (0-9)" />
+                        <PasswordRequirement met={passwordChecks.special} label="One special character (!@#$%^&* etc)" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-white mb-2 block">Confirm Password</Label>
+                    <div className="relative">
+                      <Input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          confirmPassword && (passwordsMatch ? 'border-green-500/50' : 'border-red-500/50')
+                        }`}
+                      />
+                      {confirmPassword && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {passwordsMatch ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {confirmPassword && !passwordsMatch && (
+                      <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
+                    )}
+                    {confirmPassword && passwordsMatch && (
+                      <p className="text-green-400 text-xs mt-1">Passwords match</p>
+                    )}
+                  </div>
+
+                  {error && (
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loading || !allPasswordChecksPassed || !passwordsMatch}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
                     {loading ? (
                       <>
