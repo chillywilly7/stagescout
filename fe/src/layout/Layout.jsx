@@ -113,6 +113,7 @@ export default function Layout({ children, currentPageName }) {
               </Link>
             ) : null}
             
+            
             {user ? (
               <>
                 <Link
