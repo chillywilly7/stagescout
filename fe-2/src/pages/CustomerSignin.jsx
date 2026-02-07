@@ -23,28 +23,25 @@ export default function CustomerSignin() {
     setError('');
 
     try {
-      const accounts = await base44.entities.CustomerAccount.filter({ email, is_verified: true });
+      // Use the backend API for customer login
+      const result = await base44.auth.login(email, password, 'customer');
       
-      if (accounts.length === 0) {
-        setError('Account not found. Please sign up first.');
-        setLoading(false);
-        return;
+      if (result && result.user) {
+        // Store session in localStorage for app state
+        authState.setSession(email, 'customer');
+        window.dispatchEvent(new Event('storage'));
+        
+        navigate(createPageUrl('CustomerDashboard') + `?email=${encodeURIComponent(email)}`);
+      } else {
+        setError('Sign in failed. Please try again.');
       }
-
-      const account = accounts[0];
-
-      if (account.password !== password) {
-        setError('Incorrect password. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      authState.setSession(email, 'customer');
-      window.dispatchEvent(new Event('storage'));
-      
-      navigate(createPageUrl('CustomerDashboard') + `?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      setError('Sign in failed. Please try again.');
+      // Handle specific error messages from the backend
+      if (err.message.includes('Invalid email') || err.message.includes('not found')) {
+        setError('Account not found or incorrect password. Please try again.');
+      } else {
+        setError(err.message || 'Sign in failed. Please try again.');
+      }
     }
     
     setLoading(false);

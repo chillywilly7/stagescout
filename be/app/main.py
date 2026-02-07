@@ -370,11 +370,164 @@ def verify_token(token: Optional[str] = Cookie(None)) -> Optional[dict]:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+# Data file paths
+CUSTOMER_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/CustomerAccount_export.csv")
+PRO_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/ProAccount_export.csv")
+
+def load_customers():
+    """Load customers from CSV file"""
+    import csv
+    customers = []
+    try:
+        with open(CUSTOMER_DATA_FILE, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                customers.append(row)
+        return customers
+    except FileNotFoundError:
+        return []
+
+def save_customers(customers):
+    """Save customers to CSV file"""
+    import csv
+    if not customers:
+        return
+    fieldnames = customers[0].keys()
+    with open(CUSTOMER_DATA_FILE, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(customers)
+
 # Routes
 @app.get("/api/health")
 async def health():
     """Health check endpoint"""
     return {"status": "ok"}
+
+@app.post("/api/auth/customer/login")
+async def customer_login(request: LoginRequest, response: Response):
+    """Customer sign in endpoint"""
+    try:
+        customers = load_customers()
+        
+        # Find customer by email
+        customer = next((c for c in customers if c['email'] == request.email), None)
+        
+        if not customer:
+            raise HTTPException(status_code=401, detail="Account not found. Please sign up first.")
+        
+        # Check if verified
+        if customer.get('is_verified', '').lower() != 'true':
+            raise HTTPException(status_code=401, detail="Account not verified. Please verify your email first.")
+        
+        # Check password
+        if customer.get('password') != request.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Create token
+        customer_id = customer.get('id', customer.get('email'))
+        access_token = create_access_token(customer_id, customer['email'])
+        
+        # Set HTTP-only secure cookie
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
+        
+        return {
+            "message": "Login successful",
+            "user": {
+                "id": customer_id,
+                "name": customer.get('name', ''),
+                "email": customer['email'],
+                "phone": customer.get('phone', ''),
+                "full_name": customer.get('name', ''),
+                "user_type": "customer"
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Customer login error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/customers")
+async def list_customers(email: Optional[str] = None, is_verified: Optional[str] = None):
+    """Get list of customers with optional filtering"""
+    customers = load_customers()
+    
+    # Apply filters
+    if email:
+        customers = [c for c in customers if c.get('email') == email]
+    if is_verified:
+        customers = [c for c in customers if c.get('is_verified', '').lower() == is_verified.lower()]
+    
+    # Remove sensitive fields
+    for customer in customers:
+        customer.pop('password', None)
+        customer.pop('verification_code', None)
+    
+    return {"customers": customers}
+
+@app.post("/api/customers")
+async def create_customer(data: dict):
+    """Create a new customer account"""
+    customers = load_customers()
+    
+    # Check if email already exists
+    existing = next((c for c in customers if c.get('email') == data.get('email')), None)
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Generate ID and verification code
+    import uuid
+    import random
+    new_customer = {
+        "id": str(uuid.uuid4())[:24],
+        "email": data.get('email'),
+        "password": data.get('password'),
+        "name": data.get('name', ''),
+        "phone": data.get('phone', ''),
+        "preferences": data.get('preferences', ''),
+        "verification_code": str(random.randint(100000, 999999)),
+        "is_verified": "false",
+        "created_date": datetime.utcnow().isoformat(),
+        "updated_date": datetime.utcnow().isoformat(),
+        "created_by_id": "",
+        "created_by": data.get('email'),
+        "is_sample": "false"
+    }
+    
+    customers.append(new_customer)
+    save_customers(customers)
+    
+    # Return without sensitive data
+    return_customer = {k: v for k, v in new_customer.items() if k not in ['password', 'verification_code']}
+    return {"customer": return_customer, "message": "Account created successfully"}
+
+@app.put("/api/customers/{customer_id}")
+async def update_customer(customer_id: str, data: dict):
+    """Update a customer account"""
+    customers = load_customers()
+    
+    customer_idx = next((i for i, c in enumerate(customers) if c.get('id') == customer_id), None)
+    if customer_idx is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Update fields
+    for key, value in data.items():
+        if key not in ['id', 'created_date', 'created_by_id', 'created_by']:
+            customers[customer_idx][key] = value
+    
+    customers[customer_idx]['updated_date'] = datetime.utcnow().isoformat()
+    save_customers(customers)
+    
+    return {"message": "Customer updated successfully"}
 
 @app.post("/api/auth/login")
 async def login(request: LoginRequest, response: Response):
@@ -747,3 +900,97 @@ async def get_test_users():
         })
     
     return {"test_users": test_users}
+
+
+# Scout Data File
+SCOUT_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/Scout_export.csv")
+
+def load_scouts():
+    """Load scouts from CSV file"""
+    import csv
+    import ast
+    scouts = []
+    try:
+        with open(SCOUT_DATA_FILE, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Parse JSON-like array fields
+                for field in ['services', 'portfolio_images', 'gear_highlights', 'style_tags', 'venue_types', 'availability_dates']:
+                    if row.get(field):
+                        try:
+                            row[field] = ast.literal_eval(row[field])
+                        except:
+                            row[field] = []
+                    else:
+                        row[field] = []
+                
+                # Convert boolean strings
+                for field in ['is_verified', 'available_last_minute', 'is_austin_based']:
+                    if row.get(field):
+                        row[field] = row[field].lower() == 'true'
+                    else:
+                        row[field] = False
+                
+                # Convert numeric fields
+                for field in ['budget_min', 'budget_max', 'turnaround_days', 'sxsw_years', 'rating', 'review_count']:
+                    if row.get(field) and row[field] != '':
+                        try:
+                            row[field] = float(row[field]) if '.' in str(row[field]) else int(row[field])
+                        except:
+                            row[field] = None
+                    else:
+                        row[field] = None
+                
+                scouts.append(row)
+        return scouts
+    except FileNotFoundError:
+        return []
+
+@app.get("/api/scouts")
+async def list_scouts(
+    sort_by: str = "sxsw_years",
+    limit: int = 10,
+    is_verified: Optional[str] = None,
+    services: Optional[str] = None,
+    location: Optional[str] = None,
+    experience_level: Optional[str] = None
+):
+    """Get list of scouts with optional sorting and filtering"""
+    scouts = load_scouts()
+    
+    # Apply filters
+    if is_verified is not None:
+        verified = is_verified.lower() == 'true'
+        scouts = [s for s in scouts if s.get('is_verified') == verified]
+    
+    if services:
+        scouts = [s for s in scouts if services in s.get('services', [])]
+    
+    if location:
+        scouts = [s for s in scouts if s.get('location') == location]
+    
+    if experience_level:
+        scouts = [s for s in scouts if s.get('experience_level') == experience_level]
+    
+    # Sort scouts
+    if sort_by == "sxsw_years":
+        scouts.sort(key=lambda x: x.get('sxsw_years') or 0, reverse=True)
+    elif sort_by == "budget_min":
+        scouts.sort(key=lambda x: x.get('budget_min') or 0)
+    elif sort_by == "rating":
+        scouts.sort(key=lambda x: x.get('rating') or 0, reverse=True)
+    elif sort_by == "name":
+        scouts.sort(key=lambda x: x.get('name', ''))
+    
+    return {"scouts": scouts[:limit]}
+
+@app.get("/api/scouts/{scout_id}")
+async def get_scout(scout_id: str):
+    """Get single scout by ID"""
+    scouts = load_scouts()
+    scout = next((s for s in scouts if s.get('id') == scout_id), None)
+    
+    if not scout:
+        raise HTTPException(status_code=404, detail="Scout not found")
+    
+    return scout
