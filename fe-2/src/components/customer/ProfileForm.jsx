@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,7 @@ export default function ProfileForm({ customer }) {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (updatedData) => {
-      await base44.entities.CustomerAccount.update(customer.id, updatedData);
+      await stagepro.entities.CustomerAccount.update(customer.id, updatedData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['customerAccount', customer.email]);
@@ -34,7 +34,7 @@ export default function ProfileForm({ customer }) {
 
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { file_url } = await stagepro.integrations.Core.UploadFile({ file });
       setProfileImage(file_url);
       toast.success('Image uploaded!');
     } catch (error) {

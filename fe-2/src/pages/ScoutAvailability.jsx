@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -23,7 +23,7 @@ export default function ScoutAvailability() {
   const { data: scout, isLoading } = useQuery({
     queryKey: ['scout', scoutId],
     queryFn: async () => {
-      const results = await base44.entities.Scout.filter({ id: scoutId });
+      const results = await stagepro.entities.Scout.filter({ id: scoutId });
       return results[0];
     },
     enabled: !!scoutId

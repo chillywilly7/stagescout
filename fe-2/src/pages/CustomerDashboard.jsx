@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -29,7 +29,7 @@ export default function CustomerDashboard() {
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ['customerAccount', email],
     queryFn: async () => {
-      const accounts = await base44.entities.CustomerAccount.filter({ email, is_verified: true });
+      const accounts = await stagepro.entities.CustomerAccount.filter({ email, is_verified: true });
       return accounts[0];
     },
     enabled: !!email
@@ -38,7 +38,7 @@ export default function CustomerDashboard() {
   // Fetch bookings
   const { data: bookings = [] } = useQuery({
     queryKey: ['customerBookings', email],
-    queryFn: () => base44.entities.BookingRequest.filter({ requester_email: email }, '-created_date'),
+    queryFn: () => stagepro.entities.BookingRequest.filter({ requester_email: email }, '-created_date'),
     enabled: !!email
   });
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -52,7 +52,7 @@ export default function BookingAuthModal({ scout, selectedDate, open, onClose })
     e.preventDefault();
     setLoading(true);
     
-    const booking = await base44.entities.BookingRequest.create({
+    const booking = await stagepro.entities.BookingRequest.create({
       scout_id: scout.id,
       event_date: format(selectedDate, 'yyyy-MM-dd'),
       ...guestData,
@@ -66,7 +66,7 @@ export default function BookingAuthModal({ scout, selectedDate, open, onClose })
   };
 
   const handleCreateAccount = () => {
-    base44.auth.redirectToLogin(window.location.href);
+    stagepro.auth.redirectToLogin(window.location.href);
   };
 
   const generateAIMessage = async () => {
@@ -88,7 +88,7 @@ Details:
 
 Write a concise, warm message (2-3 sentences) expressing interest in booking them, mentioning the specific services, and asking about availability. Keep it casual and Austin-style - not too formal.`;
 
-    const response = await base44.integrations.Core.InvokeLLM({
+    const response = await stagepro.integrations.Core.InvokeLLM({
       prompt: prompt
     });
 

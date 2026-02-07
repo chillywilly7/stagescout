@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { authState } from '@/components/authHelper';
@@ -28,7 +28,7 @@ export default function CustomerSignin() {
 
     try {
       // Use the backend API for customer login
-      const result = await base44.auth.login(email, password, 'customer');
+      const result = await stagepro.auth.login(email, password, 'customer');
       
       if (result && result.user) {
         // Store session in localStorage for app state
@@ -59,7 +59,7 @@ export default function CustomerSignin() {
     setError('');
 
     try {
-      await base44.auth.sendResetCode(email, 'customer');
+      await stagepro.auth.sendResetCode(email, 'customer');
       setMode('verify');
     } catch (err) {
       setError(err.message || 'Failed to send reset code. Please try again.');
@@ -74,7 +74,7 @@ export default function CustomerSignin() {
     setError('');
 
     try {
-      await base44.auth.verifyResetCode(email, inputCode, 'customer');
+      await stagepro.auth.verifyResetCode(email, inputCode, 'customer');
       setMode('reset');
     } catch (err) {
       setError(err.message || 'Invalid verification code. Please try again.');
@@ -101,7 +101,7 @@ export default function CustomerSignin() {
     }
 
     try {
-      await base44.auth.resetPassword(email, newPassword, 'customer');
+      await stagepro.auth.resetPassword(email, newPassword, 'customer');
       
       setMode('signin');
       setPassword('');

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,10 +100,10 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
       }
 
       if (scoutProfile) {
-        return base44.entities.Scout.update(scoutProfile.id, data);
+        return stagepro.entities.Scout.update(scoutProfile.id, data);
       } else {
-        const scout = await base44.entities.Scout.create(data);
-        await base44.entities.ProAccount.update(proAccount.id, { scout_id: scout.id });
+        const scout = await stagepro.entities.Scout.create(data);
+        await stagepro.entities.ProAccount.update(proAccount.id, { scout_id: scout.id });
         return scout;
       }
     },
@@ -119,7 +119,7 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
 
     setUploadingImage(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { file_url } = await stagepro.integrations.Core.UploadFile({ file });
 
       if (type === 'profile') {
         setFormData({ ...formData, profile_image: file_url });
@@ -770,7 +770,7 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
                           if (!file) return;
                           setUploadingImage(true);
                           try {
-                            const { file_url } = await base44.integrations.Core.UploadFile({ file });
+                            const { file_url } = await stagepro.integrations.Core.UploadFile({ file });
                             setFormData({
                               ...formData,
                               verification_documents: [...(formData.verification_documents || []), file_url]
@@ -812,7 +812,7 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
                       await saveMutation.mutateAsync(updatedData);
 
                       // Send email to admin
-                      await base44.integrations.Core.SendEmail({
+                      await stagepro.integrations.Core.SendEmail({
                         to: proAccount.email,
                         subject: '🔔 New Verification Request - StageLink',
                         body: `

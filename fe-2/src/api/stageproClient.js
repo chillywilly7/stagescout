@@ -1,9 +1,9 @@
-// FastAPI Backend Client
+// StagePro API Client
 // Communicates with the Python FastAPI backend running on port 8000
 
 const API_BASE_URL = "http://localhost:8000/api";
 
-export const base44 = {
+export const stagepro = {
   auth: {
     me: async () => {
       try {
@@ -179,15 +179,155 @@ export const base44 = {
     redirectToLogin: () => {
       window.dispatchEvent(new CustomEvent("showLoginModal"));
     },
+    
+    // Pro-specific auth methods
+    pro: {
+      getSecurityQuestions: async (email) => {
+        const response = await fetch(`${API_BASE_URL}/auth/pro/security-questions`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to get security questions");
+      },
+      
+      sendResetCode: async (email) => {
+        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/send-code`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to send reset code");
+      },
+      
+      resetWithSecurityQuestions: async (email, securityAnswer1, securityAnswer2, newPassword) => {
+        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/security-questions`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            email, 
+            security_answer_1: securityAnswer1,
+            security_answer_2: securityAnswer2,
+            new_password: newPassword
+          }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Password reset failed");
+      },
+      
+      verifyResetCode: async (email, code) => {
+        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/verify-code`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Code verification failed");
+      },
+      
+      resetPassword: async (email, newPassword) => {
+        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/reset`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, new_password: newPassword }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Password reset failed");
+      },
+    },
+    
+    // Customer-specific auth methods
+    customer: {
+      sendVerification: async (email, name) => {
+        const response = await fetch(`${API_BASE_URL}/auth/customer/send-verification`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, name }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to send verification");
+      },
+    },
   },
   
-  // Legacy integrations object for backwards compatibility
+  // Integrations for file uploads and emails
   integrations: {
     Core: {
+      UploadFile: async ({ file }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch(`${API_BASE_URL}/upload`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+        
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "File upload failed");
+      },
+      
       SendEmail: async ({ to, subject, body }) => {
-        // Email sending is now handled by backend
+        const response = await fetch(`${API_BASE_URL}/email/send`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to, subject, body }),
+        });
+        
+        if (response.ok) {
+          return await response.json();
+        }
+        // Silently fail for email - log but don't throw
         console.log("Email sending delegated to backend:", { to, subject });
         return { success: true };
+      }
+    }
+  },
+  
+  // App logging
+  appLogs: {
+    logUserInApp: async (pageName) => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/logs/page-view`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ page_name: pageName }),
+        });
+        return response.ok;
+      } catch (error) {
+        // Silently fail for logging
+        return false;
       }
     }
   },
@@ -442,6 +582,30 @@ export const base44 = {
           return [];
         }
       },
+      
+      create: async (data) => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/scouts`, {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            return result;
+          } else {
+            const error = await response.json();
+            throw new Error(error.detail || "Failed to create scout");
+          }
+        } catch (error) {
+          console.error("Error creating scout:", error);
+          throw error;
+        }
+      },
     },
     
     BookingRequest: {
@@ -466,7 +630,7 @@ export const base44 = {
         }
       },
       
-      filter: async (filters = {}) => {
+      filter: async (filters = {}, sortBy = null) => {
         try {
           const params = new URLSearchParams();
           Object.entries(filters).forEach(([key, value]) => {
@@ -474,6 +638,11 @@ export const base44 = {
               params.append(key, value);
             }
           });
+          
+          if (sortBy) {
+            const sortField = sortBy.startsWith('-') ? sortBy.substring(1) : sortBy;
+            params.append('sort_by', sortField);
+          }
           
           const response = await fetch(
             `${API_BASE_URL}/bookings?${params.toString()}`,
@@ -568,7 +737,7 @@ export const base44 = {
         }
       },
       
-      filter: async (filters = {}) => {
+      filter: async (filters = {}, sortBy = null) => {
         try {
           const params = new URLSearchParams();
           Object.entries(filters).forEach(([key, value]) => {
@@ -576,6 +745,10 @@ export const base44 = {
               params.append(key, value);
             }
           });
+          
+          if (sortBy) {
+            params.append('sort_by', sortBy);
+          }
           
           const response = await fetch(
             `${API_BASE_URL}/messages?${params.toString()}`,

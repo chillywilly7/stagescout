@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -24,7 +24,7 @@ export default function BookingChat() {
   const { data: booking, isLoading: loadingBooking } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: async () => {
-      const bookings = await base44.entities.BookingRequest.filter({ id: bookingId });
+      const bookings = await stagepro.entities.BookingRequest.filter({ id: bookingId });
       return bookings[0];
     },
     enabled: !!bookingId
@@ -34,7 +34,7 @@ export default function BookingChat() {
   const { data: scout } = useQuery({
     queryKey: ['scout', booking?.scout_id],
     queryFn: async () => {
-      const scouts = await base44.entities.Scout.filter({ id: booking.scout_id });
+      const scouts = await stagepro.entities.Scout.filter({ id: booking.scout_id });
       return scouts[0];
     },
     enabled: !!booking?.scout_id
@@ -43,7 +43,7 @@ export default function BookingChat() {
   // Fetch messages
   const { data: messages = [] } = useQuery({
     queryKey: ['chatMessages', bookingId],
-    queryFn: () => base44.entities.ChatMessage.filter({ booking_request_id: bookingId }, 'created_date'),
+    queryFn: () => stagepro.entities.ChatMessage.filter({ booking_request_id: bookingId }, 'created_date'),
     enabled: !!bookingId,
     refetchInterval: 3000 // Poll every 3 seconds for new messages
   });
@@ -51,7 +51,7 @@ export default function BookingChat() {
   // Send message mutation
   const sendMutation = useMutation({
     mutationFn: async (messageData) => {
-      return base44.entities.ChatMessage.create(messageData);
+      return stagepro.entities.ChatMessage.create(messageData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['chatMessages', bookingId]);

@@ -1,39 +1,52 @@
-**Welcome to your Base44 project** 
+# StagePro - Scout Booking Platform
 
-**About**
+A modern platform for booking scouts and service professionals for events in Austin.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+## Getting Started
 
-This project contains everything you need to run your app locally.
+### Prerequisites
+- Node.js 18+
+- npm or yarn
 
-**Edit the code in your local development environment**
+### Installation
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
-
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
-
-```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+```bash
+npm install
 ```
 
-Run the app: `npm run dev`
+### Development
 
-**Publish your changes**
+```bash
+npm run dev
+```
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+### Environment Variables
 
-**Docs & Support**
+Create a `.env.local` file with:
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+```
+VITE_STAGEPRO_APP_BASE_URL=http://localhost:8000
+```
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+### Building for Production
+
+```bash
+npm run build
+```
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+## Project Structure
+
+- `src/api/stageproClient.js` - API client for communicating with the FastAPI backend
+- `src/pages/` - Page components
+- `src/components/` - Reusable UI components
+- `src/lib/` - Utilities and context providers
+
+## Backend
+
+The frontend connects to a FastAPI backend running on port 8000. See the `be/` directory for backend setup.

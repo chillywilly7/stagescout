@@ -1,5 +1,5 @@
 import React from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useQuery } from '@tanstack/react-query';
 import HeroSection from '@/components/home/HeroSection';
 import ServiceCategories from '@/components/home/ServiceCategories';
@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 export default function Home() {
   const { data: scouts = [] } = useQuery({
     queryKey: ['scouts-featured'],
-    queryFn: () => base44.entities.Scout.filter({ is_verified: true }, '-sxsw_years', 8)
+    queryFn: () => stagepro.entities.Scout.filter({ is_verified: true }, '-sxsw_years', 8)
   });
 
   return (

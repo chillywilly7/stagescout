@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { authState } from '@/components/authHelper';
@@ -55,7 +55,7 @@ export default function CustomerSignup() {
       
       setEmailStatus({ checking: true, available: null, message: 'Checking...' });
       try {
-        const result = await base44.auth.checkEmail(debouncedEmail, 'customer');
+        const result = await stagepro.auth.checkEmail(debouncedEmail, 'customer');
         if (result.exists) {
           // Show which account type if different
           const existingType = result.user_type || 'user';
@@ -84,7 +84,7 @@ export default function CustomerSignup() {
       
       setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
       try {
-        const result = await base44.auth.checkPhone(debouncedPhone, 'customer');
+        const result = await stagepro.auth.checkPhone(debouncedPhone, 'customer');
         // Check if phone format is invalid
         if (result.valid === false) {
           setPhoneStatus({ checking: false, available: false, message: result.error || 'Invalid phone format' });
@@ -229,7 +229,7 @@ export default function CustomerSignup() {
 
     try {
       // Complete signup with backend - creates account with hashed password
-      const result = await base44.auth.signup(email, password, name, phone, 'customer');
+      const result = await stagepro.auth.signup(email, password, name, phone, 'customer');
       
       // Set session
       authState.setSession(email, 'customer');
@@ -252,7 +252,7 @@ export default function CustomerSignup() {
     setError('');
     
     try {
-      await base44.auth.customer.sendVerification(email, name);
+      await stagepro.auth.customer.sendVerification(email, name);
       setError(''); // Clear any previous error
       alert('Verification code resent! Check your email.');
     } catch (err) {

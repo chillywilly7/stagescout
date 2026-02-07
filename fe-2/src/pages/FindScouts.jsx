@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useQuery } from '@tanstack/react-query';
 import ScoutCard from '@/components/scouts/ScoutCard';
 import ScoutFilters from '@/components/scouts/ScoutFilters';
@@ -25,7 +25,7 @@ export default function FindScouts() {
 
   const { data: scoutsRaw = [], isLoading } = useQuery({
     queryKey: ['scouts'],
-    queryFn: () => base44.entities.Scout.list('-sxsw_years', 100)
+    queryFn: () => stagepro.entities.Scout.list('-sxsw_years', 100)
   });
 
   // Sort scouts: verified first, then by rating, then by SXSW years

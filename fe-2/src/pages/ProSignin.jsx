@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { authState } from '@/components/authHelper';
@@ -34,7 +34,7 @@ export default function ProSignin() {
 
     try {
       // Use backend login endpoint with password verification
-      const result = await base44.auth.login(email, password, 'pro');
+      const result = await stagepro.auth.login(email, password, 'pro');
       
       // Set session
       authState.setSession(email, 'pro');
@@ -56,7 +56,7 @@ export default function ProSignin() {
 
     try {
       // Check if email exists and get security questions
-      const result = await base44.auth.pro.getSecurityQuestions(email);
+      const result = await stagepro.auth.pro.getSecurityQuestions(email);
       
       if (result.questions && result.questions.length > 0) {
         setSecurityQuestions(result.questions);
@@ -77,7 +77,7 @@ export default function ProSignin() {
     setError('');
 
     try {
-      await base44.auth.pro.sendResetCode(email);
+      await stagepro.auth.pro.sendResetCode(email);
       setMode('verify');
     } catch (err) {
       setError(err.message || 'Failed to send reset code. Please try again.');
@@ -92,7 +92,7 @@ export default function ProSignin() {
     setError('');
 
     try {
-      await base44.auth.pro.resetWithSecurityQuestions(
+      await stagepro.auth.pro.resetWithSecurityQuestions(
         email,
         securityAnswer1,
         securityAnswer2
@@ -111,7 +111,7 @@ export default function ProSignin() {
     setError('');
 
     try {
-      await base44.auth.pro.verifyResetCode(email, inputCode);
+      await stagepro.auth.pro.verifyResetCode(email, inputCode);
       setMode('reset');
     } catch (err) {
       setError(err.message || 'Invalid or expired code. Please try again.');
@@ -141,7 +141,7 @@ export default function ProSignin() {
     }
 
     try {
-      await base44.auth.pro.resetPassword(email, newPassword);
+      await stagepro.auth.pro.resetPassword(email, newPassword);
 
       setMode('signin');
       setPassword('');

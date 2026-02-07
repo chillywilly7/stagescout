@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -36,7 +36,7 @@ export default function ProDashboard() {
   const { data: proAccount, isLoading: loadingAccount } = useQuery({
     queryKey: ['proAccount', email],
     queryFn: async () => {
-      const accounts = await base44.entities.ProAccount.filter({ email, is_verified: true });
+      const accounts = await stagepro.entities.ProAccount.filter({ email, is_verified: true });
       return accounts[0];
     },
     enabled: !!email
@@ -46,7 +46,7 @@ export default function ProDashboard() {
     queryKey: ['scoutProfile', proAccount?.scout_id],
     queryFn: async () => {
       if (!proAccount?.scout_id) return null;
-      const scouts = await base44.entities.Scout.filter({ id: proAccount.scout_id });
+      const scouts = await stagepro.entities.Scout.filter({ id: proAccount.scout_id });
       return scouts[0];
     },
     enabled: !!proAccount?.scout_id
@@ -55,7 +55,7 @@ export default function ProDashboard() {
   // Fetch bookings
   const { data: bookings = [] } = useQuery({
     queryKey: ['proBookings', scoutProfile?.id],
-    queryFn: () => base44.entities.BookingRequest.filter({ scout_id: scoutProfile.id }, '-created_date'),
+    queryFn: () => stagepro.entities.BookingRequest.filter({ scout_id: scoutProfile.id }, '-created_date'),
     enabled: !!scoutProfile?.id
   });
 

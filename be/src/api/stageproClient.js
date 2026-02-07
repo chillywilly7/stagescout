@@ -1,15 +1,15 @@
-// FastAPI Backend Client
+// StagePro API Client
 // Communicates with the Python FastAPI backend running on port 8000
 
 const API_BASE_URL = "http://localhost:8000/api";
 
-export const base44 = {
+export const stagepro = {
   auth: {
     me: async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
           method: "GET",
-          credentials: "include", // Include cookies for authentication
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -30,7 +30,7 @@ export const base44 = {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
           method: "POST",
-          credentials: "include", // Enable cookie storage
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -68,7 +68,6 @@ export const base44 = {
     },
     
     redirectToLogin: () => {
-      // This will be called from the UI to show login modal
       window.dispatchEvent(new CustomEvent("showLoginModal"));
     },
   },
@@ -147,12 +146,10 @@ export const base44 = {
     
     Booking: {
       list: async () => {
-        // TODO: Implement when booking endpoints are ready
         return [];
       },
       
       create: async (data) => {
-        // TODO: Implement when booking endpoints are ready
         console.log("Creating booking:", data);
         return null;
       },
@@ -160,17 +157,14 @@ export const base44 = {
     
     Message: {
       list: async () => {
-        // TODO: Implement when messaging endpoints are ready
         return [];
       },
     },
     
     Review: {
       list: async () => {
-        // TODO: Implement when review endpoints are ready
         return [];
       },
     },
   },
 };
-

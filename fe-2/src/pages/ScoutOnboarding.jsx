@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -141,7 +141,7 @@ export default function ScoutOnboarding() {
     if (!file) return;
     
     setImageUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    const { file_url } = await stagepro.integrations.Core.UploadFile({ file });
     updateField('profile_image', file_url);
     setImageUploading(false);
   };
@@ -151,7 +151,7 @@ export default function ScoutOnboarding() {
     if (!file) return;
     
     setPortfolioUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    const { file_url } = await stagepro.integrations.Core.UploadFile({ file });
     setFormData(prev => ({
       ...prev,
       portfolio_images: [...prev.portfolio_images, file_url]
@@ -225,7 +225,7 @@ export default function ScoutOnboarding() {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setVerificationCode('');
     
-    await base44.integrations.Core.SendEmail({
+    await stagepro.integrations.Core.SendEmail({
       to: formData.email,
       subject: 'Verify your StagePros email',
       body: `Your verification code is: ${code}\n\nEnter this code to complete your StagePros registration.`
@@ -261,10 +261,10 @@ export default function ScoutOnboarding() {
       is_verified: false
     };
     
-    await base44.entities.Scout.create(cleanedData);
+    await stagepro.entities.Scout.create(cleanedData);
     
     // Create ProAccount with password
-    await base44.entities.ProAccount.create({
+    await stagepro.entities.ProAccount.create({
       email: formData.email,
       password: password,
       is_verified: true

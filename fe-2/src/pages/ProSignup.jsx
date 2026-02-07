@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { stagepro } from '@/api/stageproClient';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { authState } from '@/components/authHelper';
@@ -71,7 +71,7 @@ export default function ProSignup() {
       
       setEmailStatus({ checking: true, available: null, message: 'Checking...' });
       try {
-        const result = await base44.auth.checkEmail(debouncedEmail, 'pro');
+        const result = await stagepro.auth.checkEmail(debouncedEmail, 'pro');
         if (result.exists) {
           // Show which account type if different
           const existingType = result.user_type || 'user';
@@ -100,7 +100,7 @@ export default function ProSignup() {
       
       setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
       try {
-        const result = await base44.auth.checkPhone(debouncedPhone, 'pro');
+        const result = await stagepro.auth.checkPhone(debouncedPhone, 'pro');
         // Check if phone format is invalid
         if (result.valid === false) {
           setPhoneStatus({ checking: false, available: false, message: result.error || 'Invalid phone format' });
@@ -278,7 +278,7 @@ export default function ProSignup() {
 
     try {
       // Complete signup with backend
-      const result = await base44.auth.signup(
+      const result = await stagepro.auth.signup(
         email, 
         password, 
         name, 
