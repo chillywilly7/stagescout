@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Shield, Lock, User, Check, X, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, Shield, Lock, User, Check, X, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 // Debounce hook for real-time validation
@@ -36,6 +36,10 @@ export default function CustomerSignup() {
   const [emailStatus, setEmailStatus] = useState({ checking: false, available: null, message: '' });
   const [phoneStatus, setPhoneStatus] = useState({ checking: false, available: null, message: '' });
   const [nameValid, setNameValid] = useState(null);
+  
+  // Password visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Debounced values for API calls
   const debouncedEmail = useDebounce(email, 500);
@@ -81,7 +85,10 @@ export default function CustomerSignup() {
       setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
       try {
         const result = await base44.auth.checkPhone(debouncedPhone, 'customer');
-        if (result.exists) {
+        // Check if phone format is invalid
+        if (result.valid === false) {
+          setPhoneStatus({ checking: false, available: false, message: result.error || 'Invalid phone format' });
+        } else if (result.exists) {
           // Show which account type if different
           const existingType = result.user_type || 'user';
           const message = existingType === 'pro' 
@@ -148,13 +155,20 @@ export default function CustomerSignup() {
       return;
     }
 
+    // Phone is required
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (!phone || phoneDigits.length < 10) {
+      setError('Phone number is required.');
+      return;
+    }
+
     if (emailStatus.available === false) {
       setError('Please use a different email address.');
       return;
     }
 
-    if (phone && phone.trim() && phoneStatus.available === false) {
-      setError('Please use a different phone number.');
+    if (phoneStatus.available === false) {
+      setError('Please use a different phone number or fix the format.');
       return;
     }
 
@@ -341,10 +355,11 @@ export default function CustomerSignup() {
                   </div>
 
                   <div>
-                    <Label className="text-white mb-2 block">Phone Number (optional)</Label>
+                    <Label className="text-white mb-2 block">Phone Number</Label>
                     <div className="relative">
                       <Input
                         type="tel"
+                        required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="(512) 555-0123"
@@ -381,7 +396,7 @@ export default function CustomerSignup() {
 
                   <Button
                     type="submit"
-                    disabled={loading || emailStatus.checking || phoneStatus.checking || emailStatus.available === false || (phone && phoneStatus.available === false)}
+                    disabled={loading || emailStatus.checking || phoneStatus.checking || emailStatus.available === false || phoneStatus.available === false || !phone}
                     className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
                     {emailStatus.checking || phoneStatus.checking ? (
@@ -495,24 +510,31 @@ export default function CustomerSignup() {
                     <Label className="text-white mb-2 block">Password</Label>
                     <div className="relative">
                       <Input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="At least 6 characters"
-                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                        placeholder="At least 8 characters"
+                        className={`bg-white/5 border-white/20 text-white pr-20 ${
                           password && (allPasswordChecksPassed ? 'border-green-500/50' : 'border-yellow-500/50')
                         }`}
                       />
-                      {password && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {allPasswordChecksPassed ? (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-gray-400 hover:text-white focus:outline-none"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        {password && (
+                          allPasswordChecksPassed ? (
                             <Check className="w-4 h-4 text-green-400" />
                           ) : (
                             <AlertCircle className="w-4 h-4 text-yellow-400" />
-                          )}
-                        </div>
-                      )}
+                          )
+                        )}
+                      </div>
                     </div>
                     
                     {/* Password requirements */}
@@ -532,24 +554,31 @@ export default function CustomerSignup() {
                     <Label className="text-white mb-2 block">Confirm Password</Label>
                     <div className="relative">
                       <Input
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Re-enter password"
-                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                        className={`bg-white/5 border-white/20 text-white pr-20 ${
                           confirmPassword && (passwordsMatch ? 'border-green-500/50' : 'border-red-500/50')
                         }`}
                       />
-                      {confirmPassword && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {passwordsMatch ? (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="text-gray-400 hover:text-white focus:outline-none"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        {confirmPassword && (
+                          passwordsMatch ? (
                             <Check className="w-4 h-4 text-green-400" />
                           ) : (
                             <X className="w-4 h-4 text-red-400" />
-                          )}
-                        </div>
-                      )}
+                          )
+                        )}
+                      </div>
                     </div>
                     {confirmPassword && !passwordsMatch && (
                       <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
@@ -579,6 +608,16 @@ export default function CustomerSignup() {
                     ) : (
                       'Complete Signup'
                     )}
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('info')}
+                    className="w-full text-gray-400 hover:text-white flex items-center justify-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Information
                   </Button>
                 </form>
               </CardContent>

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Mail, Shield, CheckCircle, Lock, User, HelpCircle, Check, X, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, Shield, CheckCircle, Lock, User, HelpCircle, Check, X, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
@@ -52,6 +52,10 @@ export default function ProSignup() {
   const [emailStatus, setEmailStatus] = useState({ checking: false, available: null, message: '' });
   const [phoneStatus, setPhoneStatus] = useState({ checking: false, available: null, message: '' });
   const [nameValid, setNameValid] = useState(null);
+  
+  // Password visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Debounced values for API calls
   const debouncedEmail = useDebounce(email, 500);
@@ -97,7 +101,10 @@ export default function ProSignup() {
       setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
       try {
         const result = await base44.auth.checkPhone(debouncedPhone, 'pro');
-        if (result.exists) {
+        // Check if phone format is invalid
+        if (result.valid === false) {
+          setPhoneStatus({ checking: false, available: false, message: result.error || 'Invalid phone format' });
+        } else if (result.exists) {
           // Show which account type if different
           const existingType = result.user_type || 'user';
           const message = existingType === 'customer' 
@@ -210,16 +217,21 @@ export default function ProSignup() {
       return;
     }
 
-    // Check phone validation status (if provided)
-    if (phone && phone.trim()) {
-      if (phoneStatus.available === false) {
-        setError('Please use a different phone number.');
-        return;
-      }
-      if (phoneStatus.checking) {
-        setError('Please wait for phone validation to complete.');
-        return;
-      }
+    // Phone is required
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (!phone || phoneDigits.length < 10) {
+      setError('Phone number is required.');
+      return;
+    }
+
+    // Check phone validation status
+    if (phoneStatus.available === false) {
+      setError('Please use a different phone number or fix the format.');
+      return;
+    }
+    if (phoneStatus.checking) {
+      setError('Please wait for phone validation to complete.');
+      return;
     }
 
     setStep('security');
@@ -523,10 +535,11 @@ export default function ProSignup() {
                   </div>
 
                   <div>
-                    <Label className="text-white mb-2 block">Phone Number (optional)</Label>
+                    <Label className="text-white mb-2 block">Phone Number</Label>
                     <div className="relative">
                       <Input
                         type="tel"
+                        required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="(512) 555-0123"
@@ -563,7 +576,7 @@ export default function ProSignup() {
 
                   <Button
                     type="submit"
-                    disabled={loading || phoneStatus.checking || (phone && phoneStatus.available === false)}
+                    disabled={loading || phoneStatus.checking || phoneStatus.available === false || !phone}
                     className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
                     {phoneStatus.checking ? (
@@ -574,6 +587,16 @@ export default function ProSignup() {
                     ) : (
                       'Continue'
                     )}
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('email')}
+                    className="w-full text-gray-400 hover:text-white flex items-center justify-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Email
                   </Button>
                 </form>
               </CardContent>
@@ -658,6 +681,16 @@ export default function ProSignup() {
                   >
                     Continue
                   </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('info')}
+                    className="w-full text-gray-400 hover:text-white flex items-center justify-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Information
+                  </Button>
                 </form>
               </CardContent>
             </Card>
@@ -680,24 +713,31 @@ export default function ProSignup() {
                     <Label className="text-white mb-2 block">Password</Label>
                     <div className="relative">
                       <Input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Create a strong password"
-                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                        className={`bg-white/5 border-white/20 text-white pr-20 ${
                           password && (allPasswordChecksPassed ? 'border-green-500/50' : 'border-yellow-500/50')
                         }`}
                       />
-                      {password && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {allPasswordChecksPassed ? (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="text-gray-400 hover:text-white focus:outline-none"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        {password && (
+                          allPasswordChecksPassed ? (
                             <Check className="w-4 h-4 text-green-400" />
                           ) : (
                             <AlertCircle className="w-4 h-4 text-yellow-400" />
-                          )}
-                        </div>
-                      )}
+                          )
+                        )}
+                      </div>
                     </div>
                     
                     {/* Password requirements checklist */}
@@ -717,24 +757,31 @@ export default function ProSignup() {
                     <Label className="text-white mb-2 block">Confirm Password</Label>
                     <div className="relative">
                       <Input
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Re-enter password"
-                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                        className={`bg-white/5 border-white/20 text-white pr-20 ${
                           confirmPassword && (passwordsMatch ? 'border-green-500/50' : 'border-red-500/50')
                         }`}
                       />
-                      {confirmPassword && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {passwordsMatch ? (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="text-gray-400 hover:text-white focus:outline-none"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        {confirmPassword && (
+                          passwordsMatch ? (
                             <Check className="w-4 h-4 text-green-400" />
                           ) : (
                             <X className="w-4 h-4 text-red-400" />
-                          )}
-                        </div>
-                      )}
+                          )
+                        )}
+                      </div>
                     </div>
                     {confirmPassword && !passwordsMatch && (
                       <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
@@ -764,6 +811,16 @@ export default function ProSignup() {
                     ) : (
                       'Create Account'
                     )}
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('security')}
+                    className="w-full text-gray-400 hover:text-white flex items-center justify-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Security Questions
                   </Button>
                 </form>
               </CardContent>

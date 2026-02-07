@@ -1183,10 +1183,12 @@ async def check_email(request: CheckEmailRequest):
 @app.post("/api/auth/check-phone")
 async def check_phone(request: CheckPhoneRequest):
     """Check if phone number is already registered in ANY account type"""
-    # Validate phone format first (industry-standard checks)
+    # For the check endpoint, be lenient - return validation status instead of 400 error
+    # This allows real-time validation feedback in the UI
     phone_valid, phone_error = validate_phone(request.phone)
     if not phone_valid:
-        raise HTTPException(status_code=400, detail=phone_error)
+        # Return validation error as response, not HTTP error - allows UI to show helpful message
+        return {"exists": False, "phone": request.phone, "valid": False, "error": phone_error}
     
     normalized = normalize_phone(request.phone)
     
@@ -1195,16 +1197,16 @@ async def check_phone(request: CheckPhoneRequest):
     for user in users:
         user_phone = normalize_phone(user.get('phone', ''))
         if user_phone and user_phone == normalized:
-            return {"exists": True, "phone": normalized, "user_type": user.get('user_type')}
+            return {"exists": True, "phone": normalized, "user_type": user.get('user_type'), "valid": True}
     
     # Also check taskers.json for legacy pro accounts
     taskers = load_taskers()
     for tasker in taskers:
         tasker_phone = normalize_phone(tasker.get('phone', ''))
         if tasker_phone and tasker_phone == normalized:
-            return {"exists": True, "phone": normalized, "user_type": "pro"}
+            return {"exists": True, "phone": normalized, "user_type": "pro", "valid": True}
     
-    return {"exists": False, "phone": normalized}
+    return {"exists": False, "phone": normalized, "valid": True}
 
 @app.post("/api/auth/security-questions")
 async def get_security_questions(request: SecurityQuestionsRequest):
