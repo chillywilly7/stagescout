@@ -371,8 +371,8 @@ def verify_token(token: Optional[str] = Cookie(None)) -> Optional[dict]:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 # Data file paths
-CUSTOMER_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/CustomerAccount_export.csv")
-PRO_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/ProAccount_export.csv")
+CUSTOMER_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/CustomerAccount.csv")
+PRO_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/ProAccount.csv")
 
 def load_customers():
     """Load customers from CSV file"""
@@ -903,7 +903,7 @@ async def get_test_users():
 
 
 # Scout Data File
-SCOUT_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/Scout_export.csv")
+SCOUT_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/Scout.csv")
 
 def load_scouts():
     """Load scouts from CSV file"""
