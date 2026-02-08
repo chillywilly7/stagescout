@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Mail, Shield, Lock, User, Check, X, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Loader2, Mail, Shield, Lock, User, Check, X, AlertCircle, Eye, EyeOff, ArrowLeft, HelpCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 // Debounce hook for real-time validation
@@ -22,7 +22,7 @@ function useDebounce(value, delay) {
 
 export default function CustomerSignup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('info'); // 'info', 'verify', 'password', 'success'
+  const [step, setStep] = useState('info'); // 'info', 'security', 'password', 'success'
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -31,6 +31,12 @@ export default function CustomerSignup() {
   const [inputCode, setInputCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Security questions state
+  const [securityQuestion1, setSecurityQuestion1] = useState("What is your pet's name?");
+  const [securityAnswer1, setSecurityAnswer1] = useState('');
+  const [securityQuestion2, setSecurityQuestion2] = useState("What city were you born in?");
+  const [securityAnswer2, setSecurityAnswer2] = useState('');
 
   // Real-time validation states
   const [emailStatus, setEmailStatus] = useState({ checking: false, available: null, message: '' });
@@ -175,6 +181,23 @@ export default function CustomerSignup() {
     // Wait for any pending checks
     if (emailStatus.checking || phoneStatus.checking) {
       setError('Please wait for validation to complete.');
+      return;
+    }
+
+    setStep('security');
+  };
+
+  const handleSecuritySubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!securityAnswer1.trim() || !securityAnswer2.trim()) {
+      setError('Please answer both security questions.');
+      return;
+    }
+
+    if (securityAnswer1.trim().length < 2 || securityAnswer2.trim().length < 2) {
+      setError('Security answers must be at least 2 characters.');
       return;
     }
 

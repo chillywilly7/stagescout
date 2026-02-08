@@ -79,7 +79,7 @@ class ForgotPasswordRequest(BaseModel):
     email: str
     security_answer_1: str
     security_answer_2: str
-    new_password: str
+    new_password: Optional[str] = None  # Optional - only used if resetting in one step
     user_type: str = "pro"
 
 class SendResetCodeRequest(BaseModel):
@@ -1051,6 +1051,10 @@ async def signup(request: SignupRequest, response: Response):
             "user_type": "customer",
             "is_verified": True,
             "preferences": {},
+            "security_question_1": request.security_question_1 or "What is your pet's name?",
+            "security_answer_1": request.security_answer_1.lower().strip() if request.security_answer_1 else "",
+            "security_question_2": request.security_question_2 or "What city were you born in?",
+            "security_answer_2": request.security_answer_2.lower().strip() if request.security_answer_2 else "",
             "created_date": datetime.utcnow().isoformat(),
             "updated_date": datetime.utcnow().isoformat()
         }
@@ -1210,54 +1214,85 @@ async def check_phone(request: CheckPhoneRequest):
 
 @app.post("/api/auth/security-questions")
 async def get_security_questions(request: SecurityQuestionsRequest):
-    """Get security questions for password reset (pro only)"""
+    """Get security questions for password reset"""
     if request.user_type == "customer":
-        raise HTTPException(status_code=400, detail="Security questions not available for customer accounts")
-    
-    taskers = load_taskers()
-    tasker = next((t for t in taskers if t['email'].lower() == request.email.lower()), None)
-    
-    if not tasker:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    questions = []
-    if tasker.get('security_question_1'):
-        questions.append(tasker['security_question_1'])
-    if tasker.get('security_question_2'):
-        questions.append(tasker['security_question_2'])
-    
-    return {"questions": questions, "email": request.email}
+        users = load_users()
+        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'customer'), None)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        questions = []
+        if user.get('security_question_1'):
+            questions.append(user['security_question_1'])
+        if user.get('security_question_2'):
+            questions.append(user['security_question_2'])
+        
+        return {"questions": questions, "email": request.email}
+    else:
+        users = load_users()
+        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'pro'), None)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        questions = []
+        if user.get('security_question_1'):
+            questions.append(user['security_question_1'])
+        if user.get('security_question_2'):
+            questions.append(user['security_question_2'])
+        
+        return {"questions": questions, "email": request.email}
 
 @app.post("/api/auth/forgot-password")
 async def forgot_password(request: ForgotPasswordRequest):
-    """Reset password using security questions (pro only)"""
+    """Reset password using security questions - verify answers and create reset session"""
     if request.user_type == "customer":
-        raise HTTPException(status_code=400, detail="Please use email verification for password reset")
-    
-    taskers = load_taskers()
-    tasker = next((t for t in taskers if t['email'].lower() == request.email.lower()), None)
-    
-    if not tasker:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Verify security answers (case-insensitive)
-    answer1_correct = request.security_answer_1.lower().strip() == (tasker.get('security_answer_1') or '').lower().strip()
-    answer2_correct = request.security_answer_2.lower().strip() == (tasker.get('security_answer_2') or '').lower().strip()
-    
-    if not (answer1_correct and answer2_correct):
-        raise HTTPException(status_code=401, detail="Security answers do not match")
-    
-    # Validate and update password
-    password_valid, password_error = validate_password(request.new_password)
-    if not password_valid:
-        raise HTTPException(status_code=400, detail=password_error)
-    
-    tasker['password'] = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    
-    if not save_taskers(taskers):
-        raise HTTPException(status_code=500, detail="Failed to update password")
-    
-    return {"message": "Password updated successfully"}
+        users = load_users()
+        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'customer'), None)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Verify security answers (case-insensitive)
+        answer1_correct = request.security_answer_1.lower().strip() == (user.get('security_answer_1') or '').lower().strip()
+        answer2_correct = request.security_answer_2.lower().strip() == (user.get('security_answer_2') or '').lower().strip()
+        
+        if not (answer1_correct and answer2_correct):
+            raise HTTPException(status_code=401, detail="Security answers do not match")
+        
+        # Create a verified reset session (same as email code verification)
+        email_key = request.email.lower()
+        password_reset_codes[email_key] = {
+            "code": "SECURITY_VERIFIED",
+            "expires": datetime.utcnow() + timedelta(minutes=15),
+            "verified": True
+        }
+        
+        return {"message": "Security answers verified", "verified": True}
+    else:
+        users = load_users()
+        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'pro'), None)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Verify security answers (case-insensitive)
+        answer1_correct = request.security_answer_1.lower().strip() == (user.get('security_answer_1') or '').lower().strip()
+        answer2_correct = request.security_answer_2.lower().strip() == (user.get('security_answer_2') or '').lower().strip()
+        
+        if not (answer1_correct and answer2_correct):
+            raise HTTPException(status_code=401, detail="Security answers do not match")
+        
+        # Create a verified reset session (same as email code verification)
+        email_key = request.email.lower()
+        password_reset_codes[email_key] = {
+            "code": "SECURITY_VERIFIED",
+            "expires": datetime.utcnow() + timedelta(minutes=15),
+            "verified": True
+        }
+        
+        return {"message": "Security answers verified", "verified": True}
 
 @app.post("/api/auth/forgot-password/send-code")
 async def send_password_reset_code(request: SendResetCodeRequest):
@@ -1266,13 +1301,13 @@ async def send_password_reset_code(request: SendResetCodeRequest):
     user_name = "User"
     
     if request.user_type == "customer":
-        customers = load_customers()
-        user = next((c for c in customers if c['email'].lower() == request.email.lower()), None)
+        users = load_users()
+        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'customer'), None)
         if user:
             user_name = user.get('name', 'Customer')
     else:
-        taskers = load_taskers()
-        user = next((t for t in taskers if t['email'].lower() == request.email.lower()), None)
+        users = load_users()
+        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'pro'), None)
         if user:
             user_name = user.get('name', 'Stage Pro')
     
@@ -1305,37 +1340,21 @@ async def reset_password_with_code(request: ResetPasswordWithCodeRequest):
     if email_key not in password_reset_codes:
         raise HTTPException(status_code=400, detail="No verified session found. Please verify your identity first.")
     
-    if request.user_type == "customer":
-        # Strong password rules for all accounts
-        password_valid, password_error = validate_password(request.new_password)
-        if not password_valid:
-            raise HTTPException(status_code=400, detail=password_error)
-        
-        customers = load_customers()
-        customer_idx = next((i for i, c in enumerate(customers) if c['email'].lower() == request.email.lower()), None)
-        
-        if customer_idx is None:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        customers[customer_idx]['password'] = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        customers[customer_idx]['updated_date'] = datetime.utcnow().isoformat()
-        save_customers(customers)
-    else:
-        # Stronger password rules for pros
-        password_valid, password_error = validate_password(request.new_password)
-        if not password_valid:
-            raise HTTPException(status_code=400, detail=password_error)
-        
-        taskers = load_taskers()
-        tasker_idx = next((i for i, t in enumerate(taskers) if t['email'].lower() == request.email.lower()), None)
-        
-        if tasker_idx is None:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        taskers[tasker_idx]['password'] = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        
-        if not save_taskers(taskers):
-            raise HTTPException(status_code=500, detail="Failed to update password")
+    # Strong password rules for all accounts
+    password_valid, password_error = validate_password(request.new_password)
+    if not password_valid:
+        raise HTTPException(status_code=400, detail=password_error)
+    
+    users = load_users()
+    user_type = request.user_type
+    user_idx = next((i for i, u in enumerate(users) if u['email'].lower() == request.email.lower() and u.get('user_type') == user_type), None)
+    
+    if user_idx is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    users[user_idx]['password'] = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    users[user_idx]['updated_date'] = datetime.utcnow().isoformat()
+    save_users(users)
     
     clear_reset_code(request.email)
     return {"message": "Password has been reset successfully"}

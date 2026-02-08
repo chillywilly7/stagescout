@@ -180,14 +180,14 @@ export const stagepro = {
       window.dispatchEvent(new CustomEvent("showLoginModal"));
     },
     
-    // Pro-specific auth methods
+    // Pro-specific auth methods (use generic endpoints with user_type: 'pro')
     pro: {
       getSecurityQuestions: async (email) => {
-        const response = await fetch(`${API_BASE_URL}/auth/pro/security-questions`, {
+        const response = await fetch(`${API_BASE_URL}/auth/security-questions`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, user_type: 'pro' }),
         });
         if (response.ok) {
           return await response.json();
@@ -197,11 +197,11 @@ export const stagepro = {
       },
       
       sendResetCode: async (email) => {
-        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/send-code`, {
+        const response = await fetch(`${API_BASE_URL}/auth/forgot-password/send-code`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, user_type: 'pro' }),
         });
         if (response.ok) {
           return await response.json();
@@ -211,7 +211,7 @@ export const stagepro = {
       },
       
       resetWithSecurityQuestions: async (email, securityAnswer1, securityAnswer2, newPassword) => {
-        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/security-questions`, {
+        const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -219,7 +219,8 @@ export const stagepro = {
             email, 
             security_answer_1: securityAnswer1,
             security_answer_2: securityAnswer2,
-            new_password: newPassword
+            new_password: newPassword,
+            user_type: 'pro'
           }),
         });
         if (response.ok) {
@@ -230,11 +231,11 @@ export const stagepro = {
       },
       
       verifyResetCode: async (email, code) => {
-        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/verify-code`, {
+        const response = await fetch(`${API_BASE_URL}/auth/forgot-password/verify-code`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, code }),
+          body: JSON.stringify({ email, code, user_type: 'pro' }),
         });
         if (response.ok) {
           return await response.json();
@@ -244,11 +245,11 @@ export const stagepro = {
       },
       
       resetPassword: async (email, newPassword) => {
-        const response = await fetch(`${API_BASE_URL}/auth/pro/forgot-password/reset`, {
+        const response = await fetch(`${API_BASE_URL}/auth/forgot-password/reset`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, new_password: newPassword }),
+          body: JSON.stringify({ email, new_password: newPassword, user_type: 'pro' }),
         });
         if (response.ok) {
           return await response.json();

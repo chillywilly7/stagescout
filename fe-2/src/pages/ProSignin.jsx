@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, LogIn, Mail, Shield, Lock, HelpCircle, KeyRound } from 'lucide-react';
+import { Loader2, LogIn, Mail, Shield, Lock, HelpCircle, KeyRound, Eye, EyeOff, Check, X, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function ProSignin() {
@@ -26,6 +26,29 @@ export default function ProSignin() {
   const [securityQuestions, setSecurityQuestions] = useState([]);
   const [securityAnswer1, setSecurityAnswer1] = useState('');
   const [securityAnswer2, setSecurityAnswer2] = useState('');
+  
+  // Password visibility toggles
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Password requirement checks
+  const passwordChecks = {
+    length: newPassword.length >= 8,
+    uppercase: /[A-Z]/.test(newPassword),
+    lowercase: /[a-z]/.test(newPassword),
+    number: /\d/.test(newPassword),
+    special: /[!@#$%^&*()_+\-=\[\]{};:'",.<>?/\\|`~]/.test(newPassword),
+  };
+  const allPasswordChecksPassed = Object.values(passwordChecks).every(Boolean);
+  const passwordsMatch = newPassword && confirmNewPassword && newPassword === confirmNewPassword;
+
+  // Password requirement indicator component
+  const PasswordRequirement = ({ met, label }) => (
+    <div className={`flex items-center gap-2 text-xs ${met ? 'text-green-400' : 'text-gray-500'}`}>
+      {met ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+      <span>{label}</span>
+    </div>
+  );
 
   const handleSignin = async (e) => {
     e.preventDefault();
@@ -125,16 +148,13 @@ export default function ProSignin() {
     setLoading(true);
     setError('');
 
-    // Password requirements: 8+ chars, uppercase, lowercase, number, special char
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};:'",.<>?/\\|`~]).{8,}$/;
-    
-    if (!passwordRegex.test(newPassword)) {
-      setError('Password must be at least 8 characters with uppercase, lowercase, number, and special character');
+    if (!allPasswordChecksPassed) {
+      setError('Please meet all password requirements.');
       setLoading(false);
       return;
     }
 
-    if (newPassword !== confirmNewPassword) {
+    if (!passwordsMatch) {
       setError('Passwords do not match.');
       setLoading(false);
       return;
@@ -537,46 +557,105 @@ export default function ProSignin() {
                   Create New Password
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Must have 8+ characters, uppercase, lowercase, number, and special character
+                  Secure your account with a strong password
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handlePasswordReset} className="space-y-4">
                   <div>
                     <Label className="text-white mb-2 block">New Password</Label>
-                    <Input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Create a strong password"
-                      className="bg-white/5 border-white/20 text-white"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showNewPassword ? "text" : "password"}
+                        required
+                        minLength={8}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Create a strong password"
+                        className={`bg-white/5 border-white/20 text-white pr-20 ${
+                          newPassword && (allPasswordChecksPassed ? 'border-green-500/50' : 'border-yellow-500/50')
+                        }`}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="text-gray-400 hover:text-white focus:outline-none"
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        {newPassword && (
+                          allPasswordChecksPassed ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-yellow-400" />
+                          )
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Password requirements */}
+                    {newPassword && (
+                      <div className="mt-3 p-3 bg-white/5 rounded-lg space-y-1.5">
+                        <p className="text-xs text-gray-400 mb-2 font-medium">Password Requirements:</p>
+                        <PasswordRequirement met={passwordChecks.length} label="At least 8 characters" />
+                        <PasswordRequirement met={passwordChecks.uppercase} label="One uppercase letter (A-Z)" />
+                        <PasswordRequirement met={passwordChecks.lowercase} label="One lowercase letter (a-z)" />
+                        <PasswordRequirement met={passwordChecks.number} label="One number (0-9)" />
+                        <PasswordRequirement met={passwordChecks.special} label="One special character (!@#$%^&* etc)" />
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <Label className="text-white mb-2 block">Confirm New Password</Label>
-                    <Input
-                      type="password"
-                      required
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      placeholder="Re-enter password"
-                      className="bg-white/5 border-white/20 text-white"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showConfirmPassword ? "text" : "password"}
+                        required
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="Re-enter password"
+                        className={`bg-white/5 border-white/20 text-white pr-20 ${
+                          confirmNewPassword && (passwordsMatch ? 'border-green-500/50' : 'border-red-500/50')
+                        }`}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="text-gray-400 hover:text-white focus:outline-none"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        {confirmNewPassword && (
+                          passwordsMatch ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )
+                        )}
+                      </div>
+                    </div>
+                    {confirmNewPassword && !passwordsMatch && (
+                      <p className="text-red-400 text-xs mt-1">Passwords do not match</p>
+                    )}
+                    {confirmNewPassword && passwordsMatch && (
+                      <p className="text-green-400 text-xs mt-1">Passwords match</p>
+                    )}
                   </div>
 
                   {error && (
-                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
                       {error}
                     </div>
                   )}
 
                   <Button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white"
+                    disabled={loading || !allPasswordChecksPassed || !passwordsMatch}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
                     {loading ? (
                       <>
