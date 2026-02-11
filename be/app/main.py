@@ -1450,24 +1450,6 @@ async def get_taskers_by_category(category: str, limit: int = 10):
     
     return {"taskers": filtered[:limit]}
 
-@app.get("/api/test-users")
-async def get_test_users():
-    """Get list of test users and their credentials for development"""
-    taskers = load_taskers()
-    test_users = []
-    
-    for tasker in taskers:
-        test_users.append({
-            "email": tasker['email'],
-            "password": "password",  # Reference password (for testing)
-            "name": tasker['name'],
-            "tasker_id": tasker['tasker_id'],
-            "note": "Use password: TestPass123! for all test users"
-        })
-    
-    return {"test_users": test_users}
-
-
 # Scout Data File
 SCOUT_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/Scout.json")
 
