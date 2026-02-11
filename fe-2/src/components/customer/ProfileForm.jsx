@@ -25,6 +25,7 @@ export default function ProfileForm({ customer }) {
   const [profileImage, setProfileImage] = useState(customer?.profile_image || '');
   const [uploading, setUploading] = useState(false);
   const [phoneStatus, setPhoneStatus] = useState({ checking: false, valid: null, message: '' });
+  const [saved, setSaved] = useState(false);
 
   const debouncedPhone = useDebounce(phone, 500);
 
@@ -40,8 +41,12 @@ export default function ProfileForm({ customer }) {
     }
 
     const phoneDigits = debouncedPhone.replace(/\D/g, '');
-    if (!debouncedPhone || phoneDigits.length < 10) {
+    if (!debouncedPhone || phoneDigits.length === 0) {
       setPhoneStatus({ checking: false, valid: null, message: '' });
+      return;
+    }
+    if (phoneDigits.length < 10) {
+      setPhoneStatus({ checking: false, valid: false, message: 'Phone number must be exactly 10 digits (US format)' });
       return;
     }
 
@@ -73,7 +78,8 @@ export default function ProfileForm({ customer }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['customerAccount', customer.email]);
-      toast.success('Profile updated successfully!');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
     },
     onError: (error) => {
       toast.error('Failed to update profile');
@@ -101,6 +107,14 @@ export default function ProfileForm({ customer }) {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    // Check digit count directly in case debounce hasn't fired yet
+    if (phoneChanged && phone.trim()) {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith('1'))) {
+        toast.error('Phone number must be exactly 10 digits (US format)');
+        return;
+      }
+    }
     if (isPhoneInvalid) {
       toast.error(phoneStatus.message || 'Please fix the phone number before saving');
       return;
@@ -210,20 +224,29 @@ export default function ProfileForm({ customer }) {
 
           <Button
             type="submit"
-            disabled={updateProfileMutation.isPending || isPhoneInvalid || isPhoneChecking}
-            className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white">
+            disabled={updateProfileMutation.isPending || isPhoneInvalid || isPhoneChecking || saved}
+            className={`w-full text-white transition-colors duration-300 ${
+              saved
+                ? 'bg-green-600 hover:bg-green-600'
+                : 'bg-burnt-orange hover:bg-burnt-orange/90'
+            }`}>
 
-            {updateProfileMutation.isPending ?
-            <>
+            {updateProfileMutation.isPending ? (
+              <>
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                 Saving...
-              </> :
-
-            <>
+              </>
+            ) : saved ? (
+              <>
+                <Check className="w-4 h-4 mr-2" />
+                Changes Saved!
+              </>
+            ) : (
+              <>
                 <Save className="w-4 h-4 mr-2" />
                 Save Changes
               </>
-            }
+            )}
           </Button>
         </form>
       </CardContent>
