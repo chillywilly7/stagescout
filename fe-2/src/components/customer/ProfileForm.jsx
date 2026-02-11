@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { stagepro } from '@/api/stageproClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Save, Upload, UserRound } from 'lucide-react';
+import { Loader2, Save, Upload, UserRound, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Debounce hook for real-time validation
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function ProfileForm({ customer }) {
   const queryClient = useQueryClient();
@@ -14,6 +24,48 @@ export default function ProfileForm({ customer }) {
   const [phone, setPhone] = useState(customer?.phone || '');
   const [profileImage, setProfileImage] = useState(customer?.profile_image || '');
   const [uploading, setUploading] = useState(false);
+  const [phoneStatus, setPhoneStatus] = useState({ checking: false, valid: null, message: '' });
+
+  const debouncedPhone = useDebounce(phone, 500);
+
+  // Real-time phone validation via backend
+  useEffect(() => {
+    const normalizedCurrent = phone.replace(/\D/g, '');
+    const normalizedOriginal = (customer?.phone || '').replace(/\D/g, '');
+
+    // If phone hasn't changed from original, skip validation
+    if (normalizedCurrent === normalizedOriginal) {
+      setPhoneStatus({ checking: false, valid: null, message: '' });
+      return;
+    }
+
+    const phoneDigits = debouncedPhone.replace(/\D/g, '');
+    if (!debouncedPhone || phoneDigits.length < 10) {
+      setPhoneStatus({ checking: false, valid: null, message: '' });
+      return;
+    }
+
+    const checkPhone = async () => {
+      setPhoneStatus({ checking: true, valid: null, message: 'Checking...' });
+      try {
+        const result = await stagepro.auth.checkPhone(debouncedPhone, customer?.user_type || 'customer');
+        if (result.valid === false) {
+          setPhoneStatus({ checking: false, valid: false, message: result.error || 'Invalid phone format' });
+        } else if (result.exists) {
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'pro'
+            ? 'Phone registered as Pro account'
+            : 'Phone already registered';
+          setPhoneStatus({ checking: false, valid: false, message });
+        } else {
+          setPhoneStatus({ checking: false, valid: true, message: 'Phone available' });
+        }
+      } catch (err) {
+        setPhoneStatus({ checking: false, valid: null, message: '' });
+      }
+    };
+    checkPhone();
+  }, [debouncedPhone]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (updatedData) => {
@@ -43,8 +95,20 @@ export default function ProfileForm({ customer }) {
     setUploading(false);
   };
 
+  const phoneChanged = phone.replace(/\D/g, '') !== (customer?.phone || '').replace(/\D/g, '');
+  const isPhoneInvalid = phoneChanged && phoneStatus.valid === false;
+  const isPhoneChecking = phoneChanged && phoneStatus.checking;
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    if (isPhoneInvalid) {
+      toast.error(phoneStatus.message || 'Please fix the phone number before saving');
+      return;
+    }
+    if (isPhoneChecking) {
+      toast.error('Please wait for phone validation to complete');
+      return;
+    }
     const updatedData = { name, phone, profile_image: profileImage };
     await updateProfileMutation.mutateAsync(updatedData);
   };
@@ -123,13 +187,30 @@ export default function ProfileForm({ customer }) {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(512) 555-0123"
-              className="bg-white/5 border-white/20 text-white" />
-
+              className={`bg-white/5 border-white/20 text-white ${phoneChanged && phoneStatus.valid === false ? 'border-red-500' : ''} ${phoneChanged && phoneStatus.valid === true ? 'border-green-500' : ''}`} />
+            {phoneStatus.checking && (
+              <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>{phoneStatus.message}</span>
+              </div>
+            )}
+            {!phoneStatus.checking && phoneStatus.valid === true && (
+              <div className="flex items-center gap-1 text-green-400 text-xs mt-1">
+                <Check className="w-3 h-3" />
+                <span>{phoneStatus.message}</span>
+              </div>
+            )}
+            {!phoneStatus.checking && phoneStatus.valid === false && (
+              <div className="flex items-center gap-1 text-red-400 text-xs mt-1">
+                <X className="w-3 h-3" />
+                <span>{phoneStatus.message}</span>
+              </div>
+            )}
           </div>
 
           <Button
             type="submit"
-            disabled={updateProfileMutation.isPending}
+            disabled={updateProfileMutation.isPending || isPhoneInvalid || isPhoneChecking}
             className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white">
 
             {updateProfileMutation.isPending ?
