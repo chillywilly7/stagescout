@@ -222,30 +222,28 @@ export default function ScoutOnboarding() {
 
   const sendVerificationCode = async () => {
     setLoading(true);
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
     setVerificationCode('');
     
-    await stagepro.integrations.Core.SendEmail({
-      to: formData.email,
-      subject: 'Verify your StagePros email',
-      body: `Your verification code is: ${code}\n\nEnter this code to complete your StagePros registration.`
-    });
-    
-    // Store code temporarily (in production, this should be server-side)
-    sessionStorage.setItem('verificationCode', code);
-    setVerificationSent(true);
+    try {
+      // Send verification code via the backend — code is generated and stored server-side
+      await stagepro.auth.customer.sendVerification(formData.email, formData.name || 'Stage Pro');
+      setVerificationSent(true);
+    } catch (err) {
+      alert('Failed to send verification email. Please try again.');
+    }
     setLoading(false);
   };
 
-  const verifyCode = () => {
+  const verifyCode = async () => {
     setVerifying(true);
-    const storedCode = sessionStorage.getItem('verificationCode');
-    if (verificationCode === storedCode) {
+    try {
+      // Verify the code server-side (never trust the client)
+      await stagepro.auth.verifyResetCode(formData.email, verificationCode, 'pro');
       setVerifying(false);
       setStep(7);
-    } else {
+    } catch (err) {
       setVerifying(false);
-      alert('Invalid verification code. Please try again.');
+      alert(err.message || 'Invalid verification code. Please try again.');
     }
   };
 
@@ -270,7 +268,6 @@ export default function ScoutOnboarding() {
       is_verified: true
     });
     
-    sessionStorage.removeItem('verificationCode');
     setSuccess(true);
     setLoading(false);
   };

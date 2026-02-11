@@ -109,7 +109,6 @@ The server will start at `http://localhost:8000`
 | Method | Endpoint | Description | Used by FE |
 |--------|----------|-------------|:----------:|
 | `GET`  | `/api/health` | Health check | ❌ |
-| `GET`  | `/api/test-users` | Lists test user emails (dev only — remove before production) | ❌ |
 
 ### Not Yet Implemented (FE expects these)
 
@@ -162,8 +161,14 @@ Update these in `app/main.py` when deploying to a production domain.
 Create a `.env` file in the `be/` directory (see `env.example`):
 
 ```
-# JWT (hardcoded default — override for production)
+# Security (REQUIRED in production — generate with: python -c "import secrets; print(secrets.token_hex(32))")
 SECRET_KEY=your-secret-key-here
+
+# Set to "production" when deploying (enables secure cookies, requires HTTPS)
+ENVIRONMENT=development
+
+# Comma-separated allowed frontend origins for CORS
+# CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 
 # SMTP for password reset & verification emails
 SMTP_SERVER=smtp.gmail.com

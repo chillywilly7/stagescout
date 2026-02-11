@@ -18,7 +18,18 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
 # Configuration
-SECRET_KEY = "your-secret-key-change-in-production"
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")  # "development" or "production"
+IS_PRODUCTION = ENVIRONMENT.lower() == "production"
+
+_secret_from_env = os.getenv("SECRET_KEY")
+if not _secret_from_env and IS_PRODUCTION:
+    raise RuntimeError("SECRET_KEY environment variable is required in production")
+if not _secret_from_env:
+    _secret_from_env = secrets.token_hex(32)  # random 256-bit key for dev
+    print("\n⚠️  WARNING: No SECRET_KEY set — using a random key. Sessions won't survive restarts.")
+    print("   Set SECRET_KEY in your .env file for stable development sessions.\n")
+
+SECRET_KEY = _secret_from_env
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/taskers.json")
@@ -38,9 +49,13 @@ password_reset_codes: Dict[str, dict] = {}
 app = FastAPI(title="Rent-A-Speaker API", version="1.0.0")
 
 # CORS middleware
+_default_origins = ["http://localhost:5173", "http://localhost:3000", "http://localhost:5174"]
+_env_origins = os.getenv("CORS_ORIGINS", "")  # comma-separated list for production
+ALLOWED_ORIGINS = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5174"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -561,8 +576,8 @@ def create_access_token(tasker_id: str, email: str, expires_delta: Optional[time
         print(f"Error encoding JWT: {e}")
         raise
 
-def verify_token(token: Optional[str] = Cookie(None)) -> Optional[dict]:
-    """Verify JWT token from cookie"""
+def verify_token(token: Optional[str] = Cookie(None, alias="access_token")) -> dict:
+    """Verify JWT token from cookie. Use as Depends(verify_token) to protect routes."""
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -572,6 +587,18 @@ def verify_token(token: Optional[str] = Cookie(None)) -> Optional[dict]:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+def set_auth_cookie(response: Response, token: str):
+    """Set the auth cookie with environment-appropriate security settings."""
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=IS_PRODUCTION,           # True in production (requires HTTPS)
+        samesite="lax" if not IS_PRODUCTION else "none",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
 
 # Data file paths
 CUSTOMER_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/CustomerAccount.json")
@@ -772,7 +799,7 @@ async def health():
     return {"status": "ok"}
 
 @app.get("/api/customers")
-async def list_customers(email: Optional[str] = None, is_verified: Optional[str] = None):
+async def list_customers(email: Optional[str] = None, is_verified: Optional[str] = None, current_user: dict = Depends(verify_token)):
     """Get list of customers with optional filtering"""
     customers = load_customers()
     
@@ -793,7 +820,7 @@ async def list_customers(email: Optional[str] = None, is_verified: Optional[str]
     return {"customers": customers}
 
 @app.post("/api/customers")
-async def create_customer(data: dict):
+async def create_customer(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new customer account"""
     customers = load_customers()
     
@@ -829,7 +856,7 @@ async def create_customer(data: dict):
     return {"customer": return_customer, "message": "Account created successfully"}
 
 @app.put("/api/customers/{customer_id}")
-async def update_customer(customer_id: str, data: dict):
+async def update_customer(customer_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update a customer account"""
     customers = load_customers()
     
@@ -853,7 +880,7 @@ async def update_customer(customer_id: str, data: dict):
 # ============ Pro Account Routes ============
 
 @app.get("/api/pros")
-async def list_pros(email: Optional[str] = None, is_verified: Optional[str] = None):
+async def list_pros(email: Optional[str] = None, is_verified: Optional[str] = None, current_user: dict = Depends(verify_token)):
     """Get list of pro accounts with optional filtering"""
     pros = load_pros()
     
@@ -874,7 +901,7 @@ async def list_pros(email: Optional[str] = None, is_verified: Optional[str] = No
     return {"pros": pros}
 
 @app.post("/api/pros")
-async def create_pro(data: dict):
+async def create_pro(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new pro account"""
     pros = load_pros()
     
@@ -906,7 +933,7 @@ async def create_pro(data: dict):
     return {"pro": return_pro, "id": new_pro['id'], "message": "Account created successfully"}
 
 @app.put("/api/pros/{pro_id}")
-async def update_pro(pro_id: str, data: dict):
+async def update_pro(pro_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update a pro account"""
     pros = load_pros()
     
@@ -969,14 +996,7 @@ async def login(request: LoginRequest, response: Response):
         access_token = create_access_token(user_id, request.email)
         
         # Set HTTP-only secure cookie
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=False,
-            samesite="lax",
-            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
+        set_auth_cookie(response, access_token)
         
         return {
             "message": "Login successful",
@@ -1064,14 +1084,7 @@ async def signup(request: SignupRequest, response: Response):
         save_users(users)
         
         access_token = create_access_token(new_customer['id'], request.email)
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=False,
-            samesite="lax",
-            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
+        set_auth_cookie(response, access_token)
         
         return {
             "message": "Account created successfully",
@@ -1141,14 +1154,7 @@ async def signup(request: SignupRequest, response: Response):
             raise HTTPException(status_code=500, detail="Failed to create account")
         
         access_token = create_access_token(new_tasker_id, request.email)
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=False,
-            samesite="lax",
-            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
+        set_auth_cookie(response, access_token)
         
         return {
             "message": "Account created successfully",
@@ -1366,39 +1372,57 @@ async def logout(response: Response):
         key="access_token",
         path="/",
         httponly=True,
-        secure=False,
-        samesite="lax"
+        secure=IS_PRODUCTION,
+        samesite="lax" if not IS_PRODUCTION else "none",
     )
     return {"message": "Logged out successfully"}
 
 @app.get("/api/auth/me")
-async def get_current_user(token: Optional[str] = Cookie(None)):
-    """Get current authenticated user"""
-    if not token:
+async def get_current_user(access_token: Optional[str] = Cookie(None)):
+    """Get current authenticated user — searches unified users store and legacy taskers"""
+    if not access_token:
         return None
     
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        tasker_id = payload.get("tasker_id")
+        payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_id = payload.get("tasker_id")  # holds user id or tasker id
         email = payload.get("email")
         
-        if not tasker_id or not email:
+        if not email:
             return None
         
-        taskers = load_taskers()
-        tasker = next((t for t in taskers if t['tasker_id'] == tasker_id), None)
+        # 1. Check unified users.json (customers + pros)
+        user = get_user_by_email(email)
+        if user:
+            user_type = user.get('user_type', 'pro')
+            return {
+                "id": user.get('tasker_id', user.get('id', '')),
+                "tasker_id": user.get('tasker_id', user.get('id', '')),
+                "name": user.get('name', ''),
+                "email": user.get('email', ''),
+                "phone": user.get('phone', ''),
+                "full_name": user.get('name', ''),
+                "user_type": user_type,
+                "is_pro": user_type == 'pro',
+            }
         
-        if not tasker:
-            return None
+        # 2. Fall back to legacy taskers.json
+        if token_id:
+            taskers = load_taskers()
+            tasker = next((t for t in taskers if t['tasker_id'] == token_id), None)
+            if tasker:
+                return {
+                    "id": tasker['tasker_id'],
+                    "tasker_id": tasker['tasker_id'],
+                    "name": tasker['name'],
+                    "email": tasker['email'],
+                    "phone": tasker['phone'],
+                    "full_name": tasker['name'],
+                    "user_type": "pro",
+                    "is_pro": tasker.get('is_pro', True),
+                }
         
-        return {
-            "tasker_id": tasker['tasker_id'],
-            "name": tasker['name'],
-            "email": tasker['email'],
-            "phone": tasker['phone'],
-            "full_name": tasker['name'],
-            "is_pro": tasker.get('is_pro', False)
-        }
+        return None
     except jwt.InvalidTokenError:
         return None
 
@@ -1529,7 +1553,7 @@ async def get_scout(scout_id: str):
     return scout
 
 @app.post("/api/scouts")
-async def create_scout(data: dict):
+async def create_scout(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new scout profile"""
     scouts = load_scouts()
     
@@ -1548,7 +1572,7 @@ async def create_scout(data: dict):
         raise HTTPException(status_code=500, detail="Failed to save scout")
 
 @app.put("/api/scouts/{scout_id}")
-async def update_scout(scout_id: str, data: dict):
+async def update_scout(scout_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update an existing scout profile"""
     scouts = load_scouts()
     
@@ -1600,7 +1624,8 @@ async def list_bookings(
     requester_email: Optional[str] = None,
     scout_id: Optional[str] = None,
     customer_id: Optional[str] = None,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    current_user: dict = Depends(verify_token)
 ):
     """Get list of booking requests with optional filtering"""
     bookings = load_bookings()
@@ -1618,7 +1643,7 @@ async def list_bookings(
     return {"bookings": bookings}
 
 @app.post("/api/bookings")
-async def create_booking(data: dict):
+async def create_booking(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new booking request"""
     bookings = load_bookings()
     
@@ -1656,7 +1681,7 @@ async def create_booking(data: dict):
     return {"booking": new_booking, "id": new_booking['id'], "message": "Booking request created successfully"}
 
 @app.get("/api/bookings/{booking_id}")
-async def get_booking(booking_id: str):
+async def get_booking(booking_id: str, current_user: dict = Depends(verify_token)):
     """Get single booking by ID"""
     bookings = load_bookings()
     booking = next((b for b in bookings if b.get('id') == booking_id), None)
@@ -1667,7 +1692,7 @@ async def get_booking(booking_id: str):
     return booking
 
 @app.put("/api/bookings/{booking_id}")
-async def update_booking(booking_id: str, data: dict):
+async def update_booking(booking_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update a booking request"""
     bookings = load_bookings()
     
@@ -1686,7 +1711,7 @@ async def update_booking(booking_id: str, data: dict):
     return {"message": "Booking updated successfully", "booking": bookings[booking_idx]}
 
 @app.delete("/api/bookings/{booking_id}")
-async def delete_booking(booking_id: str):
+async def delete_booking(booking_id: str, current_user: dict = Depends(verify_token)):
     """Delete a booking request"""
     bookings = load_bookings()
     
