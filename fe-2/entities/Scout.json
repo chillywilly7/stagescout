@@ -1,0 +1,182 @@
+{
+  "name": "Scout",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Business or artist name"
+    },
+    "email": {
+      "type": "string",
+      "description": "Contact email"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Contact phone"
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "audio_rental",
+          "dj",
+          "photography",
+          "videography",
+          "lighting",
+          "full_production"
+        ]
+      },
+      "description": "Services offered"
+    },
+    "bio": {
+      "type": "string",
+      "description": "Short bio"
+    },
+    "profile_image": {
+      "type": "string",
+      "description": "Profile photo URL"
+    },
+    "portfolio_images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Portfolio image URLs"
+    },
+    "gear_highlights": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Key gear or specialties"
+    },
+    "style_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Style descriptors"
+    },
+    "location": {
+      "type": "string",
+      "enum": [
+        "downtown",
+        "east_austin",
+        "red_river",
+        "south_austin",
+        "north_austin",
+        "other"
+      ],
+      "description": "Austin area"
+    },
+    "venue_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "indoor",
+          "outdoor",
+          "popup",
+          "showcase",
+          "brand_activation"
+        ]
+      },
+      "description": "Venue compatibility"
+    },
+    "experience_level": {
+      "type": "string",
+      "enum": [
+        "local_shows",
+        "touring",
+        "sxsw_veteran"
+      ],
+      "description": "Experience tier"
+    },
+    "sxsw_years": {
+      "type": "number",
+      "description": "Number of SXSW years worked"
+    },
+    "budget_min": {
+      "type": "number",
+      "description": "Minimum rate"
+    },
+    "budget_max": {
+      "type": "number",
+      "description": "Maximum rate"
+    },
+    "turnaround_days": {
+      "type": "number",
+      "description": "Deliverable turnaround for photo/video"
+    },
+    "available_last_minute": {
+      "type": "boolean",
+      "description": "Available for last-minute bookings"
+    },
+    "availability_dates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Available dates"
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "Verification status approved by admin"
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "none",
+      "description": "Verification request status"
+    },
+    "verification_business_name": {
+      "type": "string",
+      "description": "Legal business name for verification"
+    },
+    "verification_tax_id": {
+      "type": "string",
+      "description": "Tax ID / EIN for verification"
+    },
+    "verification_insurance": {
+      "type": "string",
+      "description": "Liability insurance details"
+    },
+    "verification_insurance_expiry": {
+      "type": "string",
+      "description": "Insurance expiration date"
+    },
+    "verification_documents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Uploaded verification documents URLs"
+    },
+    "rating": {
+      "type": "number",
+      "default": 0,
+      "description": "Average rating score"
+    },
+    "review_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of reviews"
+    },
+    "is_austin_based": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "email",
+    "services"
+  ]
+}

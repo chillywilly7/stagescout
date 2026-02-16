@@ -1,0 +1,115 @@
+{
+  "name": "BookingRequest",
+  "type": "object",
+  "properties": {
+    "scout_id": {
+      "type": "string",
+      "description": "Reference to scout"
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Reference to customer account (optional)"
+    },
+    "requester_name": {
+      "type": "string"
+    },
+    "requester_email": {
+      "type": "string"
+    },
+    "requester_phone": {
+      "type": "string"
+    },
+    "organization": {
+      "type": "string",
+      "description": "Venue or company name"
+    },
+    "services_needed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "audio_rental",
+          "dj",
+          "photography",
+          "videography",
+          "lighting",
+          "full_production"
+        ]
+      }
+    },
+    "event_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "start_time": {
+      "type": "string"
+    },
+    "end_time": {
+      "type": "string"
+    },
+    "is_multiday": {
+      "type": "boolean",
+      "default": false
+    },
+    "additional_dates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "venue_type": {
+      "type": "string",
+      "enum": [
+        "indoor",
+        "outdoor",
+        "popup",
+        "showcase",
+        "brand_activation"
+      ]
+    },
+    "venue_name": {
+      "type": "string"
+    },
+    "venue_area": {
+      "type": "string",
+      "enum": [
+        "downtown",
+        "east_austin",
+        "red_river",
+        "south_austin",
+        "north_austin",
+        "other"
+      ]
+    },
+    "budget_range": {
+      "type": "string",
+      "enum": [
+        "under_500",
+        "500_1000",
+        "1000_2500",
+        "2500_5000",
+        "5000_plus"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "contacted",
+        "confirmed",
+        "declined",
+        "completed"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "scout_id",
+    "requester_email",
+    "services_needed",
+    "event_date"
+  ]
+}

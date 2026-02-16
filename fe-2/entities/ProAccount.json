@@ -1,0 +1,30 @@
+{
+  "name": "ProAccount",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "Pro email address"
+    },
+    "password": {
+      "type": "string",
+      "description": "Hashed password"
+    },
+    "verification_code": {
+      "type": "string",
+      "description": "6-digit verification code"
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "Email verification status"
+    },
+    "scout_id": {
+      "type": "string",
+      "description": "Reference to Scout entity once verified"
+    }
+  },
+  "required": [
+    "email"
+  ]
+}

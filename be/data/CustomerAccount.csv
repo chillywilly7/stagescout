@@ -1,2 +1,3 @@
 password,preferences,phone,name,verification_code,is_verified,email,id,created_date,updated_date,created_by_id,created_by,is_sample
-"Stagelink10","","5126613466","Ricardo Solis","605947","true","ric.solis96@gmail.com","697e3b763f8bd022b620c17f","2026-01-31T17:27:18.949000","2026-01-31T17:27:54.791000","69758739094dbadd0fd499c1","ric.solis96@gmail.com","false"
+Stagelink10,,5121231234,Ricardo Solis,605947,true,daniel@test.com,697e3b763f8bd022b620c17f,2026-01-31T17:27:18.949000,2026-01-31T17:27:54.791000,69758739094dbadd0fd499c1,ric.solis96@gmail.com,false
+$2b$12$Px1zMN/gZgJDfZHT3BnkWeVT55RhKs9WiHX7z5PpV/xV6CA0hYfze,,1234567899,testuser,,True,test@user.com,6d6731b3bfb4daf19487c542,2026-02-07T20:04:01.968582,2026-02-07T20:04:01.968593,,,

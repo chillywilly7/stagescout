@@ -1,0 +1,55 @@
+{
+  "name": "CustomerAccount",
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": "string",
+      "description": "Customer email address"
+    },
+    "password": {
+      "type": "string",
+      "description": "Hashed password"
+    },
+    "name": {
+      "type": "string",
+      "description": "Customer full name"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Customer phone number"
+    },
+    "verification_code": {
+      "type": "string",
+      "description": "6-digit verification code"
+    },
+    "is_verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "Email verification status"
+    },
+    "profile_image": {
+      "type": "string",
+      "description": "URL to customer's profile image"
+    },
+    "preferences": {
+      "type": "object",
+      "properties": {
+        "preferred_services": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "preferred_areas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "email"
+  ]
+}
