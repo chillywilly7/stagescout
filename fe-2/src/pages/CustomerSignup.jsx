@@ -184,7 +184,8 @@ export default function CustomerSignup() {
       return;
     }
 
-    setStep('security');
+    // Skip security questions for customers - go directly to password
+    setStep('password');
   };
 
   const handleSecuritySubmit = async (e) => {

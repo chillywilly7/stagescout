@@ -19,8 +19,10 @@ export default function CustomerDashboard() {
 
   const [activeTab, setActiveTab] = useState('profile');
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear both localStorage and the HTTP-only cookie
     authState.clearSession();
+    await stagepro.auth.logout();
     window.dispatchEvent(new Event('storage'));
     navigate(createPageUrl('Home'));
   };
@@ -29,7 +31,7 @@ export default function CustomerDashboard() {
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ['customerAccount', email],
     queryFn: async () => {
-      const accounts = await stagepro.entities.CustomerAccount.filter({ email, is_verified: true });
+      const accounts = await stagepro.entities.CustomerAccount.filter({ email });
       return accounts[0];
     },
     enabled: !!email

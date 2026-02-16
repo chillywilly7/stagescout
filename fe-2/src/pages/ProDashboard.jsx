@@ -26,8 +26,10 @@ export default function ProDashboard() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState(isNew ? 'profile' : 'bookings');
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Clear both localStorage and the HTTP-only cookie
     authState.clearSession();
+    await stagepro.auth.logout();
     window.dispatchEvent(new Event('storage'));
     navigate(createPageUrl('Home'));
   };
@@ -36,7 +38,7 @@ export default function ProDashboard() {
   const { data: proAccount, isLoading: loadingAccount } = useQuery({
     queryKey: ['proAccount', email],
     queryFn: async () => {
-      const accounts = await stagepro.entities.ProAccount.filter({ email, is_verified: true });
+      const accounts = await stagepro.entities.ProAccount.filter({ email });
       return accounts[0];
     },
     enabled: !!email
