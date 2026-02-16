@@ -86,6 +86,10 @@ class CheckPhoneRequest(BaseModel):
     phone: str
     user_type: str = "pro"  # 'customer' or 'pro'
 
+class CheckNameRequest(BaseModel):
+    name: str
+    user_type: str = "pro"  # For pro accounts, check Scout name availability
+
 class SecurityQuestionsRequest(BaseModel):
     email: str
     user_type: str = "pro"
@@ -1218,6 +1222,22 @@ async def check_phone(request: CheckPhoneRequest):
     
     return {"exists": False, "phone": normalized, "valid": True}
 
+@app.post("/api/auth/check-name")
+async def check_name(request: CheckNameRequest):
+    """Check if business/artist name is already taken in Scout profiles"""
+    if not request.name or len(request.name.strip()) < 2:
+        return {"exists": False, "name": request.name, "valid": False, "error": "Name must be at least 2 characters"}
+    
+    normalized_name = request.name.lower().strip()
+    
+    # Check Scout.json for existing names
+    scouts = load_scouts()
+    for scout in scouts:
+        if scout.get('name', '').lower().strip() == normalized_name:
+            return {"exists": True, "name": request.name, "valid": True}
+    
+    return {"exists": False, "name": request.name, "valid": True}
+
 @app.post("/api/auth/security-questions")
 async def get_security_questions(request: SecurityQuestionsRequest):
     """Get security questions for password reset"""
@@ -1377,6 +1397,41 @@ async def logout(response: Response):
     )
     return {"message": "Logged out successfully"}
 
+# ============ Email Verification Endpoints ============
+
+@app.post("/api/auth/customer/send-verification")
+async def send_verification_code_endpoint(request: SendVerificationCodeRequest):
+    """Send email verification code for signup (works for both customer and pro accounts)"""
+    email = request.email.lower().strip()
+    user_name = request.name or "there"
+    user_type = request.user_type or "customer"
+    
+    # Validate email format
+    email_valid, email_error = validate_email(email)
+    if not email_valid:
+        raise HTTPException(status_code=400, detail=email_error)
+    
+    # Generate and store verification code
+    code = generate_verification_code()
+    store_verification_code(email, code, user_type)
+    
+    # Send verification email
+    if send_verification_email(email, code, user_name, user_type):
+        return {"message": "Verification code sent successfully", "email": email}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send verification email. Please try again.")
+
+@app.post("/api/auth/verify-email")
+async def verify_email_code_endpoint(request: CustomerVerifyRequest):
+    """Verify email verification code"""
+    is_valid, message = verify_verification_code(request.email, request.code)
+    
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
+    
+    # Don't clear the code yet - let it be cleared on successful account creation
+    return {"message": "Email verified successfully", "valid": True}
+
 # Page view logging endpoint
 @app.post("/api/logs/page-view")
 async def log_page_view(request: Request):
@@ -1516,6 +1571,7 @@ async def list_scouts(
     sort_by: str = "sxsw_years",
     limit: int = 10,
     id: Optional[str] = None,
+    email: Optional[str] = None,
     is_verified: Optional[str] = None,
     services: Optional[str] = None,
     location: Optional[str] = None,
@@ -1528,6 +1584,10 @@ async def list_scouts(
     # Filter by ID first (most specific filter)
     if id:
         scouts = [s for s in scouts if s.get('id') == id]
+    
+    # Filter by email (case-insensitive)
+    if email:
+        scouts = [s for s in scouts if s.get('email', '').lower() == email.lower()]
     
     if is_verified is not None:
         verified = is_verified.lower() == 'true'

@@ -210,8 +210,13 @@ export default function CustomerSignup() {
     setLoading(true);
     setError('');
 
-    // Skip verification for now - go to password
-    setStep('password');
+    try {
+      // Verify the code server-side using email verification endpoint
+      await stagepro.auth.customer.verifyEmail(email, inputCode);
+      setStep('password');
+    } catch (err) {
+      setError(err.message || 'Invalid verification code. Please try again.');
+    }
     setLoading(false);
   };
 

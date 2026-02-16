@@ -86,6 +86,19 @@ export const stagepro = {
       throw new Error("Failed to check phone");
     },
     
+    checkName: async (name, userType = 'pro') => {
+      const response = await fetch(`${API_BASE_URL}/auth/check-name`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, user_type: userType }),
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error("Failed to check name");
+    },
+    
     getSecurityQuestions: async (email, userType = 'pro') => {
       const response = await fetch(`${API_BASE_URL}/auth/security-questions`, {
         method: "POST",
@@ -261,18 +274,32 @@ export const stagepro = {
     
     // Customer-specific auth methods
     customer: {
-      sendVerification: async (email, name) => {
+      sendVerification: async (email, name, userType = 'customer') => {
         const response = await fetch(`${API_BASE_URL}/auth/customer/send-verification`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, name }),
+          body: JSON.stringify({ email, name, user_type: userType }),
         });
         if (response.ok) {
           return await response.json();
         }
         const error = await response.json();
         throw new Error(error.detail || "Failed to send verification");
+      },
+      
+      verifyEmail: async (email, code) => {
+        const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code }),
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        const error = await response.json();
+        throw new Error(error.detail || "Email verification failed");
       },
     },
   },

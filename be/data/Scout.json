@@ -625,34 +625,5 @@
     "created_by_id": "69758739094dbadd0fd499c1",
     "created_by": "ric.solis96@gmail.com",
     "is_sample": false
-  },
-  {
-    "id": "5eac499b-b1b3-4ed6-b3ce-",
-    "created_date": "2026-02-16T14:21:40.256026",
-    "name": "TestPro",
-    "email": "danniboy.gtz10@hotmail.com",
-    "phone": "5125125123",
-    "bio": "I am a test pro ",
-    "services": [
-      "audio_rental",
-      "photography"
-    ],
-    "location": "downtown",
-    "venue_types": [
-      "outdoor"
-    ],
-    "experience_level": "sxsw_veteran",
-    "sxsw_years": 121,
-    "budget_min": "",
-    "budget_max": "",
-    "available_last_minute": false,
-    "availability_dates": [],
-    "turnaround_days": 7,
-    "profile_image": "",
-    "portfolio_images": [],
-    "gear_highlights": [],
-    "style_tags": [],
-    "is_austin_based": true,
-    "updated_date": "2026-02-16T14:23:48.567358"
   }
 ]
