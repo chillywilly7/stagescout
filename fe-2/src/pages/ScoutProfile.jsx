@@ -124,7 +124,7 @@ export default function ScoutProfile() {
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-wrap gap-2">
                 {scout.is_verified && (
-                  <Badge className="bg-emerald-600 text-white font-bold shadow-lg">
+                  <Badge className="bg-emerald-600 text-white font-bold shadow-lg border border-emerald-700/50 backdrop-blur-sm">
                     <div className="relative w-4 h-4 mr-1">
                       <Shield className="w-4 h-4 fill-current absolute inset-0" />
                       <CheckCircle className="w-2.5 h-2.5 absolute inset-0 m-auto" />
@@ -133,19 +133,19 @@ export default function ScoutProfile() {
                   </Badge>
                 )}
                 {scout.is_austin_based && (
-                  <Badge className="bg-neon-teal/90 text-black font-semibold">
+                  <Badge className="bg-neon-teal text-black font-semibold shadow-lg border border-black/20 backdrop-blur-sm">
                     <MapPin className="w-3 h-3 mr-1" />
                     Austin-Based
                   </Badge>
                 )}
                 {scout.experience_level === 'sxsw_veteran' && (
-                  <Badge className="bg-burnt-orange/90 text-white font-semibold">
+                  <Badge className="bg-burnt-orange text-white font-semibold shadow-lg border border-orange-800/50 backdrop-blur-sm drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
                     <Star className="w-3 h-3 mr-1" />
                     SXSW Veteran
                   </Badge>
                 )}
                 {scout.available_last_minute && (
-                  <Badge className="bg-electric-purple/90 text-white font-semibold">
+                  <Badge className="bg-electric-purple text-white font-semibold shadow-lg border border-purple-800/50 backdrop-blur-sm drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
                     <Zap className="w-3 h-3 mr-1" />
                     Last-Minute Available
                   </Badge>
@@ -306,7 +306,7 @@ export default function ScoutProfile() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-white/5 border border-white/10 rounded-2xl p-6 sticky top-4"
+              className="bg-white/5 border border-white/10 rounded-2xl p-6"
             >
               <h3 className="text-lg font-bold text-white mb-4">Quick Info</h3>
               
