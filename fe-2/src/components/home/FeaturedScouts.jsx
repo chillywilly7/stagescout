@@ -73,13 +73,13 @@ export default function FeaturedScouts({ scouts }) {
                     {/* Badges */}
                     <div className="absolute top-3 left-3 flex gap-2">
                       {scout.is_austin_based && (
-                        <Badge className="bg-neon-teal/90 text-black text-xs font-semibold">
+                        <Badge className="bg-neon-teal text-black text-xs font-semibold shadow-lg border border-black/20 backdrop-blur-sm">
                           <MapPin className="w-3 h-3 mr-1" />
                           Austin
                         </Badge>
                       )}
                       {scout.experience_level === 'sxsw_veteran' && (
-                        <Badge className="bg-burnt-orange/90 text-white text-xs font-semibold">
+                        <Badge className="bg-burnt-orange text-white text-xs font-semibold shadow-lg border border-orange-800/50 backdrop-blur-sm drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
                           <Star className="w-3 h-3 mr-1" />
                           SXSW Vet
                         </Badge>
@@ -88,7 +88,7 @@ export default function FeaturedScouts({ scouts }) {
                     
                     {scout.available_last_minute && (
                       <div className="absolute top-3 right-3">
-                        <Badge className="bg-electric-purple/90 text-white text-xs">
+                        <Badge className="bg-electric-purple text-white text-xs shadow-lg border border-purple-800/50 backdrop-blur-sm drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
                           <Zap className="w-3 h-3 mr-1" />
                           Last Minute OK
                         </Badge>
