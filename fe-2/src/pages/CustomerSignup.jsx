@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Mail, Shield, Lock, User, Check, X, AlertCircle, Eye, EyeOff, ArrowLeft, HelpCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -184,8 +185,15 @@ export default function CustomerSignup() {
       return;
     }
 
-    // Skip security questions for customers - go directly to password
-    setStep('password');
+    // Send verification email and go to verify step
+    setLoading(true);
+    try {
+      await stagepro.auth.customer.sendVerification(email, name);
+      setStep('verify');
+    } catch (err) {
+      setError(err.message || 'Failed to send verification email. Please try again.');
+    }
+    setLoading(false);
   };
 
   const handleSecuritySubmit = async (e) => {
@@ -213,7 +221,7 @@ export default function CustomerSignup() {
     try {
       // Verify the code server-side using email verification endpoint
       await stagepro.auth.customer.verifyEmail(email, inputCode);
-      setStep('password');
+      setStep('security');
     } catch (err) {
       setError(err.message || 'Invalid verification code. Please try again.');
     }
@@ -257,8 +265,18 @@ export default function CustomerSignup() {
     }
 
     try {
-      // Complete signup with backend - creates account with hashed password
-      const result = await stagepro.auth.signup(email, password, name, phone, 'customer');
+      // Complete signup with backend - creates account with hashed password and security questions
+      const result = await stagepro.auth.signup(
+        email, 
+        password, 
+        name, 
+        phone, 
+        'customer', 
+        securityQuestion1,
+        securityAnswer1,
+        securityQuestion2,
+        securityAnswer2
+      );
       
       // Set session
       authState.setSession(email, 'customer');
@@ -428,7 +446,12 @@ export default function CustomerSignup() {
                     disabled={loading || emailStatus.checking || phoneStatus.checking || emailStatus.available === false || phoneStatus.available === false || !phone}
                     className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
-                    {emailStatus.checking || phoneStatus.checking ? (
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Sending Verification...
+                      </>
+                    ) : emailStatus.checking || phoneStatus.checking ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
                         Validating...
@@ -516,6 +539,94 @@ export default function CustomerSignup() {
                     className="w-full text-gray-400 hover:text-white"
                   >
                     Use Different Email
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === 'security' && (
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-burnt-orange" />
+                  Security Questions
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Set up security questions for account recovery
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSecuritySubmit} className="space-y-4">
+                  <div>
+                    <Label className="text-white mb-2 block">Security Question 1</Label>
+                    <Select value={securityQuestion1} onValueChange={setSecurityQuestion1}>
+                      <SelectTrigger className="w-full bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Select a security question" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-white/20">
+                        <SelectItem value="What is your pet's name?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What is your pet's name?</SelectItem>
+                        <SelectItem value="What is your mother's maiden name?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What is your mother's maiden name?</SelectItem>
+                        <SelectItem value="What was the name of your first school?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What was the name of your first school?</SelectItem>
+                        <SelectItem value="What is your favorite movie?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What is your favorite movie?</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="text"
+                      required
+                      value={securityAnswer1}
+                      onChange={(e) => setSecurityAnswer1(e.target.value)}
+                      placeholder="Your answer"
+                      className="mt-2 bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-white mb-2 block">Security Question 2</Label>
+                    <Select value={securityQuestion2} onValueChange={setSecurityQuestion2}>
+                      <SelectTrigger className="w-full bg-white/5 border-white/20 text-white">
+                        <SelectValue placeholder="Select a security question" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-white/20">
+                        <SelectItem value="What city were you born in?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What city were you born in?</SelectItem>
+                        <SelectItem value="What was your childhood nickname?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What was your childhood nickname?</SelectItem>
+                        <SelectItem value="What is the name of your best friend?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What is the name of your best friend?</SelectItem>
+                        <SelectItem value="What was your first car?" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">What was your first car?</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="text"
+                      required
+                      value={securityAnswer2}
+                      onChange={(e) => setSecurityAnswer2(e.target.value)}
+                      placeholder="Your answer"
+                      className="mt-2 bg-white/5 border-white/20 text-white"
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={!securityAnswer1.trim() || !securityAnswer2.trim()}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
+                  >
+                    Continue
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setStep('verify')}
+                    className="w-full text-gray-400 hover:text-white flex items-center justify-center gap-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back
                   </Button>
                 </form>
               </CardContent>
@@ -642,11 +753,11 @@ export default function CustomerSignup() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setStep('info')}
+                    onClick={() => setStep('security')}
                     className="w-full text-gray-400 hover:text-white flex items-center justify-center gap-2"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    Back to Information
+                    Back to Security Questions
                   </Button>
                 </form>
               </CardContent>
