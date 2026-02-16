@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, Depends
+from fastapi import FastAPI, HTTPException, Response, Cookie, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -1376,6 +1376,19 @@ async def logout(response: Response):
         samesite="lax" if not IS_PRODUCTION else "none",
     )
     return {"message": "Logged out successfully"}
+
+# Page view logging endpoint
+@app.post("/api/logs/page-view")
+async def log_page_view(request: Request):
+    """Log page view for analytics - accepts and acknowledges silently"""
+    try:
+        body = await request.json()
+        page_name = body.get("page_name", "unknown")
+        # Could log to file or database here if needed
+        # For now, just acknowledge the request
+        return {"success": True, "page": page_name}
+    except Exception:
+        return {"success": True}
 
 @app.get("/api/auth/me")
 async def get_current_user(access_token: Optional[str] = Cookie(None)):

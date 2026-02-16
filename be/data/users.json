@@ -69,6 +69,19 @@
       "is_sample": false
     },
     {
+      "id": "7af86f8a2aa8b2d6fe9f0607",
+      "email": "danniboy.gtz10@hotmail.com",
+      "name": "Test Person",
+      "phone": "5125125123",
+      "password": "$2b$12$n04cvHffdmfSS6ozzKBUHOI5US1wIMlF/Q56M8v/cN85/.p7bQ4oK",
+      "user_type": "pro",
+      "tasker_id": "task_020",
+      "is_verified": false,
+      "created_date": "2026-02-16T20:19:04.062913",
+      "updated_date": "2026-02-16T20:21:40.259654",
+      "scout_id": "5eac499b-b1b3-4ed6-b3ce-"
+    },
+    {
       "id": "697e3b763f8bd022b620c17f",
       "email": "daniel@test.com",
       "name": "Ricardo Solis",
@@ -115,18 +128,6 @@
       "updated_date": "2026-02-07T20:06:42.227523"
     },
     {
-      "id": "7bd64a41f725d97d07440bfe",
-      "email": "danniboy.gtz10@hotmail.com",
-      "name": "Daniel Tester",
-      "phone": "9154003333",
-      "password": "$2b$12$rk8OJzSBkI5/PYaQCUMHe.UT1Rr.1bP23BX3Y6g62uCRRzLK9bMHi",
-      "user_type": "customer",
-      "is_verified": true,
-      "preferences": {},
-      "created_date": "2026-02-07T20:57:22.445442",
-      "updated_date": "2026-02-07T20:59:17.205643"
-    },
-    {
       "id": "aff1189032c1e914b6463e54",
       "email": "daniel@tester.com",
       "name": "Daniel Tester",
@@ -149,6 +150,23 @@
       "preferences": {},
       "created_date": "2026-02-07T22:44:15.294833",
       "updated_date": "2026-02-07T22:44:25.668486",
+      "profile_image": ""
+    },
+    {
+      "id": "8f4e2ba8975782f1b4a60a3a",
+      "email": "testperson2@test.com",
+      "name": "Test Person2",
+      "phone": "2132132134",
+      "password": "$2b$12$Lb79HefoTtSYovEZ2gZ8weXSfrEO0aONlYthHGQRo/jGUrKHh0Bzi",
+      "user_type": "customer",
+      "is_verified": true,
+      "preferences": {},
+      "security_question_1": "What is your pet's name?",
+      "security_answer_1": "",
+      "security_question_2": "What city were you born in?",
+      "security_answer_2": "",
+      "created_date": "2026-02-16T20:37:23.038646",
+      "updated_date": "2026-02-16T20:37:49.841493",
       "profile_image": ""
     }
   ]
