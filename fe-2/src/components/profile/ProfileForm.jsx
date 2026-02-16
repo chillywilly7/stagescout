@@ -87,10 +87,17 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
   });
 
   useEffect(() => {
-    if (scoutProfile) {
-      setFormData((prev) => ({ ...prev, ...scoutProfile }));
+    if (scoutProfile || proAccount) {
+      setFormData((prev) => ({ 
+        ...prev,
+        // Use scoutProfile data first, fall back to proAccount
+        name: scoutProfile?.name || proAccount?.name || prev.name,
+        phone: scoutProfile?.phone || proAccount?.phone || prev.phone,
+        email: scoutProfile?.email || proAccount?.email || email,
+        ...scoutProfile 
+      }));
     }
-  }, [scoutProfile]);
+  }, [scoutProfile, proAccount, email]);
 
   const saveMutation = useMutation({
     mutationFn: async (data) => {

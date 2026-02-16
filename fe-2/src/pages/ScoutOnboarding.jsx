@@ -1,16 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { stagepro } from '@/api/stageproClient';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { authState } from '@/components/authHelper';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Volume2, Disc3, Camera, Video, Lightbulb, Clapperboard,
-  ArrowRight, ArrowLeft, CheckCircle, Loader2, Upload, X, Plus
+  ArrowRight, ArrowLeft, CheckCircle, Loader2, Upload, X, Plus, Check, HelpCircle
 } from 'lucide-react';
+
+// Debounce hook for real-time validation
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -74,6 +92,16 @@ const generateDates = () => {
 
 const AVAILABLE_DATES = generateDates();
 
+const SECURITY_QUESTIONS = [
+  "What is your pet's name?",
+  "What city were you born in?",
+  "What is your favorite book?",
+  "What was your childhood nickname?",
+  "What is your favorite season?",
+  "What was the name of your first school?",
+  "What is your mother's maiden name?"
+];
+
 export default function ScoutOnboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -87,6 +115,10 @@ export default function ScoutOnboarding() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [securityQuestion1, setSecurityQuestion1] = useState('');
+  const [securityAnswer1, setSecurityAnswer1] = useState('');
+  const [securityQuestion2, setSecurityQuestion2] = useState('');
+  const [securityAnswer2, setSecurityAnswer2] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -112,6 +144,140 @@ export default function ScoutOnboarding() {
 
   const [customGear, setCustomGear] = useState('');
   const [customStyle, setCustomStyle] = useState('');
+
+  // Real-time validation states
+  const [emailStatus, setEmailStatus] = useState({ checking: false, available: null, message: '' });
+  const [phoneStatus, setPhoneStatus] = useState({ checking: false, available: null, message: '' });
+  const [nameStatus, setNameStatus] = useState({ checking: false, available: null, message: '' });
+
+  // Debounced values for API calls
+  const debouncedEmail = useDebounce(formData.email, 500);
+  const debouncedPhone = useDebounce(formData.phone, 500);
+  const debouncedName = useDebounce(formData.name, 500);
+
+  // Real-time email validation
+  useEffect(() => {
+    const checkEmail = async () => {
+      if (!debouncedEmail || !debouncedEmail.includes('@')) {
+        setEmailStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      setEmailStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await stagepro.auth.checkEmail(debouncedEmail, 'pro');
+        if (result.exists) {
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'customer' 
+            ? 'Email registered as Customer account' 
+            : 'Email already registered';
+          setEmailStatus({ checking: false, available: false, message });
+        } else {
+          setEmailStatus({ checking: false, available: true, message: 'Email available' });
+        }
+      } catch (err) {
+        setEmailStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkEmail();
+  }, [debouncedEmail]);
+
+  // Real-time phone validation - only call API when local validation passes
+  useEffect(() => {
+    const checkPhone = async () => {
+      // Local validation first
+      let cleaned = debouncedPhone ? debouncedPhone.replace(/[^\d+]/g, '') : '';
+      if (cleaned.startsWith('+1')) cleaned = cleaned.slice(2);
+      else if (cleaned.startsWith('1') && cleaned.length === 11) cleaned = cleaned.slice(1);
+      
+      // Skip if empty or not exactly 10 digits
+      if (!debouncedPhone || cleaned.length !== 10) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      // Area code check before API call
+      const areaCodeValid = !['0', '1'].includes(cleaned[0]);
+      
+      if (!areaCodeValid) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      setPhoneStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await stagepro.auth.checkPhone(debouncedPhone, 'pro');
+        if (result.valid === false) {
+          setPhoneStatus({ checking: false, available: false, message: result.error || 'Invalid phone format' });
+        } else if (result.exists) {
+          const existingType = result.user_type || 'user';
+          const message = existingType === 'customer' 
+            ? 'Phone registered as Customer account' 
+            : 'Phone already registered';
+          setPhoneStatus({ checking: false, available: false, message });
+        } else {
+          setPhoneStatus({ checking: false, available: true, message: 'Phone available' });
+        }
+      } catch (err) {
+        setPhoneStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkPhone();
+  }, [debouncedPhone]);
+
+  // Real-time name validation - check if name is taken
+  useEffect(() => {
+    const checkName = async () => {
+      if (!debouncedName || debouncedName.trim().length < 2) {
+        setNameStatus({ checking: false, available: null, message: '' });
+        return;
+      }
+      
+      setNameStatus({ checking: true, available: null, message: 'Checking...' });
+      try {
+        const result = await stagepro.auth.checkName(debouncedName, 'pro');
+        if (result.valid === false) {
+          setNameStatus({ checking: false, available: false, message: result.error || 'Invalid name' });
+        } else if (result.exists) {
+          setNameStatus({ checking: false, available: false, message: 'Name already taken' });
+        } else {
+          setNameStatus({ checking: false, available: true, message: 'Name available' });
+        }
+      } catch (err) {
+        setNameStatus({ checking: false, available: null, message: '' });
+      }
+    };
+    checkName();
+  }, [debouncedName]);
+
+  // Validation status indicator component
+  const ValidationIndicator = ({ status, checking, message }) => {
+    if (checking) {
+      return (
+        <div className="flex items-center gap-1 text-gray-400 text-xs mt-1">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    if (status === true) {
+      return (
+        <div className="flex items-center gap-1 text-green-400 text-xs mt-1">
+          <Check className="w-3 h-3" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    if (status === false) {
+      return (
+        <div className="flex items-center gap-1 text-red-400 text-xs mt-1">
+          <X className="w-3 h-3" />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    return null;
+  };
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -188,16 +354,61 @@ export default function ScoutOnboarding() {
 
   const canProceed = () => {
     switch (step) {
-      case 1: return formData.name && formData.email;
+      case 1: 
+        // Must have name and email, all must be available (not checking, not unavailable)
+        // If phone is entered, it must be valid format and pass API check
+        const phoneEmpty = !formData.phone || formData.phone.trim() === '';
+        const phoneFormatValid = phoneEmpty || phoneValidation.valid;
+        const phoneApiValid = phoneEmpty || (phoneStatus.available !== false && !phoneStatus.checking);
+        
+        return formData.name && 
+               formData.name.trim().length >= 2 &&
+               nameStatus.available !== false &&
+               !nameStatus.checking &&
+               formData.email && 
+               formData.email.includes('@') &&
+               emailStatus.available !== false && 
+               !emailStatus.checking &&
+               phoneFormatValid &&
+               phoneApiValid;
       case 2: return formData.services.length > 0;
       case 3: return formData.experience_level;
       case 4: return true; // Optional
       case 5: return formData.availability_dates.length > 0;
       case 6: return verificationCode.length === 6;
-      case 7: return password && password === confirmPassword && !passwordError;
+      case 7: return securityQuestion1 && securityAnswer1.trim() && securityQuestion2 && securityAnswer2.trim() && securityQuestion1 !== securityQuestion2;
+      case 8: return password && password === confirmPassword && !passwordError;
       default: return true;
     }
   };
+
+  // Local phone validation checks (10 digits + valid area code)
+  const validatePhoneFormat = (phone) => {
+    if (!phone || phone.trim() === '') {
+      return { valid: true, empty: true, digitCount: 0, areaCodeValid: true };
+    }
+    
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    
+    // Handle country code
+    if (cleaned.startsWith('+1')) {
+      cleaned = cleaned.slice(2);
+    } else if (cleaned.startsWith('1') && cleaned.length === 11) {
+      cleaned = cleaned.slice(1);
+    }
+    
+    const digitCount = cleaned.length;
+    const hasExactly10 = digitCount === 10;
+    
+    // Area code validation (cannot start with 0 or 1)
+    const areaCodeValid = digitCount < 1 || !['0', '1'].includes(cleaned[0]);
+    
+    const valid = hasExactly10 && areaCodeValid;
+    
+    return { valid, empty: false, digitCount, hasExactly10, areaCodeValid };
+  };
+
+  const phoneValidation = validatePhoneFormat(formData.phone);
 
   const validatePassword = (pwd) => {
     if (pwd.length < 8) {
@@ -226,7 +437,7 @@ export default function ScoutOnboarding() {
     
     try {
       // Send verification code via the backend — code is generated and stored server-side
-      await stagepro.auth.customer.sendVerification(formData.email, formData.name || 'Stage Pro');
+      await stagepro.auth.customer.sendVerification(formData.email, formData.name || 'Stage Pro', 'pro');
       setVerificationSent(true);
     } catch (err) {
       alert('Failed to send verification email. Please try again.');
@@ -237,10 +448,10 @@ export default function ScoutOnboarding() {
   const verifyCode = async () => {
     setVerifying(true);
     try {
-      // Verify the code server-side (never trust the client)
-      await stagepro.auth.verifyResetCode(formData.email, verificationCode, 'pro');
+      // Verify the code server-side using the email verification endpoint
+      await stagepro.auth.customer.verifyEmail(formData.email, verificationCode);
       setVerifying(false);
-      setStep(7);
+      setStep(7); // Go to security questions
     } catch (err) {
       setVerifying(false);
       alert(err.message || 'Invalid verification code. Please try again.');
@@ -250,25 +461,47 @@ export default function ScoutOnboarding() {
   const handleSubmit = async () => {
     setLoading(true);
     
-    const cleanedData = {
-      ...formData,
-      budget_min: formData.budget_min ? Number(formData.budget_min) : null,
-      budget_max: formData.budget_max ? Number(formData.budget_max) : null,
-      turnaround_days: formData.turnaround_days ? Number(formData.turnaround_days) : null,
-      sxsw_years: Number(formData.sxsw_years) || 0,
-      is_verified: false
-    };
+    try {
+      // First, create the ProAccount via signup (this also logs in the user)
+      await stagepro.auth.signup(
+        formData.email,
+        password,
+        formData.name,
+        formData.phone,
+        'pro',
+        securityQuestion1,
+        securityAnswer1,
+        securityQuestion2,
+        securityAnswer2
+      );
+      
+      // Now that we're authenticated, create the Scout profile
+      const cleanedData = {
+        ...formData,
+        budget_min: formData.budget_min ? Number(formData.budget_min) : null,
+        budget_max: formData.budget_max ? Number(formData.budget_max) : null,
+        turnaround_days: formData.turnaround_days ? Number(formData.turnaround_days) : null,
+        sxsw_years: Number(formData.sxsw_years) || 0,
+        is_verified: false
+      };
+      
+      await stagepro.entities.Scout.create(cleanedData);
+      
+      // Set session state for immediate access
+      authState.setSession(formData.email, 'pro');
+      window.dispatchEvent(new Event('storage'));
+      
+      setSuccess(true);
+      
+      // Auto-redirect to dashboard after 2 seconds
+      setTimeout(() => {
+        navigate(createPageUrl('ProDashboard') + `?email=${encodeURIComponent(formData.email)}&new=true`);
+      }, 2000);
+    } catch (err) {
+      console.error('Error completing setup:', err);
+      alert(err.message || 'Failed to complete setup. Please try again.');
+    }
     
-    await stagepro.entities.Scout.create(cleanedData);
-    
-    // Create ProAccount with password
-    await stagepro.entities.ProAccount.create({
-      email: formData.email,
-      password: password,
-      is_verified: true
-    });
-    
-    setSuccess(true);
     setLoading(false);
   };
 
@@ -285,13 +518,13 @@ export default function ScoutOnboarding() {
           </div>
           <h2 className="text-3xl font-black text-white mb-4">You're All Set!</h2>
           <p className="text-gray-400 mb-8">
-            Your profile is now live. Bookers can find you and send booking requests.
+            Your profile is now live. Redirecting to your dashboard...
           </p>
           <Button 
-            onClick={() => navigate(createPageUrl('FindScouts'))}
+            onClick={() => navigate(createPageUrl('ProDashboard') + `?email=${encodeURIComponent(formData.email)}`)}
             className="bg-burnt-orange hover:bg-burnt-orange/90"
           >
-            View All Pros
+            Go to Dashboard
           </Button>
         </motion.div>
       </div>
@@ -365,33 +598,108 @@ export default function ScoutOnboarding() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-white mb-2 block">Business/Artist Name *</Label>
-                    <Input
-                      value={formData.name}
-                      onChange={(e) => updateField('name', e.target.value)}
-                      className="bg-white/5 border-white/20 text-white"
-                      placeholder="Your name or brand"
+                    <div className="relative">
+                      <Input
+                        value={formData.name}
+                        onChange={(e) => updateField('name', e.target.value)}
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          nameStatus.available === true ? 'border-green-500/50' : 
+                          nameStatus.available === false ? 'border-red-500/50' : ''
+                        }`}
+                        placeholder="Your name or brand"
+                      />
+                      {(nameStatus.checking || nameStatus.available !== null) && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {nameStatus.checking ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          ) : nameStatus.available ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ValidationIndicator 
+                      status={nameStatus.available} 
+                      checking={nameStatus.checking} 
+                      message={nameStatus.message} 
                     />
                   </div>
                   <div>
                     <Label className="text-white mb-2 block">Contact Email *</Label>
-                    <Input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => updateField('email', e.target.value)}
-                      className="bg-white/5 border-white/20 text-white"
-                      placeholder="you@example.com"
+                    <div className="relative">
+                      <Input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => updateField('email', e.target.value)}
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          emailStatus.available === true ? 'border-green-500/50' : 
+                          emailStatus.available === false ? 'border-red-500/50' : ''
+                        }`}
+                        placeholder="you@example.com"
+                      />
+                      {(emailStatus.checking || emailStatus.available !== null) && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {emailStatus.checking ? (
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          ) : emailStatus.available ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <ValidationIndicator 
+                      status={emailStatus.available} 
+                      checking={emailStatus.checking} 
+                      message={emailStatus.message} 
                     />
                   </div>
                 </div>
 
                 <div>
                   <Label className="text-white mb-2 block">Phone Number</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) => updateField('phone', e.target.value)}
-                    className="bg-white/5 border-white/20 text-white"
-                    placeholder="(512) 555-0123"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => updateField('phone', e.target.value)}
+                      className={`bg-white/5 border-white/20 text-white pr-10 ${
+                        phoneValidation.valid && phoneStatus.available === true ? 'border-green-500/50' : 
+                        (!phoneValidation.empty && !phoneValidation.valid) || phoneStatus.available === false ? 'border-red-500/50' : ''
+                      }`}
+                      placeholder="(512) 555-0123"
+                    />
+                    {(phoneStatus.checking || (phoneValidation.valid && phoneStatus.available !== null)) && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {phoneStatus.checking ? (
+                          <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                        ) : phoneStatus.available ? (
+                          <Check className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <X className="w-4 h-4 text-red-400" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {!phoneValidation.empty && (
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p className={phoneValidation.hasExactly10 ? "text-green-400" : "text-gray-500"}>
+                        {phoneValidation.hasExactly10 ? '✓' : '○'} 10 digits ({phoneValidation.digitCount}/10)
+                      </p>
+                      <p className={phoneValidation.areaCodeValid ? "text-green-400" : "text-red-400"}>
+                        {phoneValidation.areaCodeValid ? '✓' : '✗'} Valid area code
+                      </p>
+                    </div>
+                  )}
+                  {phoneValidation.valid && (
+                    <ValidationIndicator 
+                      status={phoneStatus.available} 
+                      checking={phoneStatus.checking} 
+                      message={phoneStatus.message} 
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -812,9 +1120,72 @@ export default function ScoutOnboarding() {
               </motion.div>
             )}
 
-            {/* Step 7: Create Password */}
+            {/* Step 7: Security Questions */}
             {step === 7 && (
               <motion.div key="step7" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                    <HelpCircle className="w-6 h-6 text-neon-teal" />
+                    Security Questions
+                  </h3>
+                  <p className="text-gray-400">Used to recover your account if you forget your password</p>
+                </div>
+
+                <div>
+                  <Label className="text-white mb-2 block">Security Question 1</Label>
+                  <Select value={securityQuestion1} onValueChange={setSecurityQuestion1}>
+                    <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                      <SelectValue placeholder="Select a question" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SECURITY_QUESTIONS.map((q) => (
+                        <SelectItem key={q} value={q}>{q}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-white mb-2 block">Answer 1</Label>
+                  <Input
+                    type="text"
+                    value={securityAnswer1}
+                    onChange={(e) => setSecurityAnswer1(e.target.value)}
+                    placeholder="Your answer"
+                    className="bg-white/5 border-white/20 text-white"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-white mb-2 block">Security Question 2</Label>
+                  <Select value={securityQuestion2} onValueChange={setSecurityQuestion2}>
+                    <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                      <SelectValue placeholder="Select a different question" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SECURITY_QUESTIONS.filter(q => q !== securityQuestion1).map((q) => (
+                        <SelectItem key={q} value={q}>{q}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-white mb-2 block">Answer 2</Label>
+                  <Input
+                    type="text"
+                    value={securityAnswer2}
+                    onChange={(e) => setSecurityAnswer2(e.target.value)}
+                    placeholder="Your answer"
+                    className="bg-white/5 border-white/20 text-white"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 8: Create Password */}
+            {step === 8 && (
+              <motion.div key="step8" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
                 <div>
                   <h3 className="text-2xl font-bold text-white mb-2">Create Password</h3>
                   <p className="text-gray-400">Secure your StagePro account</p>
@@ -869,8 +1240,15 @@ export default function ScoutOnboarding() {
           <div className="flex justify-between mt-8 pt-6 border-t border-white/10">
             <Button
               variant="ghost"
-              onClick={() => setStep(s => s - 1)}
-              disabled={step === 1 || (step === 6 && verificationSent) || step === 7}
+              onClick={() => {
+                if (step === 6 && verificationSent) {
+                  // Reset verification state when going back from step 6
+                  setVerificationSent(false);
+                  setVerificationCode('');
+                }
+                setStep(s => s - 1);
+              }}
+              disabled={step === 1 || step === 8}
               className="text-white hover:bg-white/5"
             >
               <ArrowLeft className="mr-2 w-4 h-4" />
@@ -896,6 +1274,15 @@ export default function ScoutOnboarding() {
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             ) : step === 7 ? (
+              <Button
+                onClick={() => setStep(8)}
+                disabled={!canProceed()}
+                className="bg-burnt-orange hover:bg-burnt-orange/90 text-white"
+              >
+                Continue
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            ) : step === 8 ? (
               <Button
                 onClick={handleSubmit}
                 disabled={loading || !canProceed()}

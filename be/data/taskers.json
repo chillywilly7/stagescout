@@ -558,32 +558,6 @@
       "security_answer_1": "testing",
       "security_question_2": "What city were you born in?",
       "security_answer_2": "testing"
-    },
-    {
-      "tasker_id": "task_020",
-      "name": "Test Person",
-      "email": "danniboy.gtz10@hotmail.com",
-      "phone": "5125125123",
-      "password": "$2b$12$n04cvHffdmfSS6ozzKBUHOI5US1wIMlF/Q56M8v/cN85/.p7bQ4oK",
-      "auth_token": "",
-      "profile_image": "https://i.pravatar.cc/150?u=danniboy.gtz10@hotmail.com",
-      "service_category": "other",
-      "bio": "",
-      "hourly_rate": 0,
-      "daily_rate": 0,
-      "zip_code": "",
-      "service_radius_miles": 25,
-      "portfolio_images": [],
-      "equipment_list": [],
-      "average_rating": 0,
-      "total_reviews": 0,
-      "years_experience": 0,
-      "is_verified": false,
-      "is_pro": true,
-      "security_question_1": "What is your favorite season?",
-      "security_answer_1": "winter",
-      "security_question_2": "What is your favorite book?",
-      "security_answer_2": "three little pigs"
     }
   ]
 }

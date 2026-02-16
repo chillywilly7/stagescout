@@ -34,24 +34,25 @@ export default function ProDashboard() {
     navigate(createPageUrl('Home'));
   };
 
-  // Fetch pro account and scout profile
-  const { data: proAccount, isLoading: loadingAccount } = useQuery({
-    queryKey: ['proAccount', email],
-    queryFn: async () => {
-      const accounts = await stagepro.entities.ProAccount.filter({ email });
-      return accounts[0];
-    },
-    enabled: !!email
+  // First, get the current authenticated user from /api/auth/me
+  const { data: currentUser, isLoading: loadingUser } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => stagepro.auth.me(),
+    retry: false
   });
 
+  // Use email from URL or from current user
+  const userEmail = email || currentUser?.email;
+
+  // Fetch scout profile by email (Scout has email field)
   const { data: scoutProfile, isLoading: loadingScout } = useQuery({
-    queryKey: ['scoutProfile', proAccount?.scout_id],
+    queryKey: ['scoutProfile', userEmail],
     queryFn: async () => {
-      if (!proAccount?.scout_id) return null;
-      const scouts = await stagepro.entities.Scout.filter({ id: proAccount.scout_id });
-      return scouts[0];
+      if (!userEmail) return null;
+      const scouts = await stagepro.entities.Scout.filter({ email: userEmail });
+      return scouts[0] || null;
     },
-    enabled: !!proAccount?.scout_id
+    enabled: !!userEmail
   });
 
   // Fetch bookings
@@ -61,7 +62,16 @@ export default function ProDashboard() {
     enabled: !!scoutProfile?.id
   });
 
-  if (loadingAccount || loadingScout) {
+  // Create a unified account object combining user and scout data
+  const proAccount = currentUser ? {
+    id: currentUser.id,
+    email: currentUser.email,
+    name: scoutProfile?.name || currentUser.name,
+    phone: scoutProfile?.phone || currentUser.phone,
+    scout_id: scoutProfile?.id
+  } : null;
+
+  if (loadingUser || loadingScout) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-burnt-orange" />
@@ -69,12 +79,12 @@ export default function ProDashboard() {
 
   }
 
-  if (!proAccount) {
+  if (!currentUser && !email) {
     return (
       <div className="min-h-screen py-20 text-center">
         <h2 className="text-2xl font-bold text-white mb-4">Access Denied</h2>
         <p className="text-gray-400 mb-6">Please sign in to access your dashboard</p>
-        <Link to={createPageUrl('ProSignup')}>
+        <Link to={createPageUrl('ProSignin')}>
           <Button className="bg-burnt-orange hover:bg-burnt-orange/90">
             Go to Sign In
           </Button>
