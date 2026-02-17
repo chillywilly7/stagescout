@@ -848,5 +848,93 @@ export const stagepro = {
         }
       },
     },
+
+    Conversation: {
+      /** List all conversations for the current authenticated user */
+      list: async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/conversations`, {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            return data.conversations || [];
+          }
+          return [];
+        } catch (error) {
+          console.error("Error fetching conversations:", error);
+          return [];
+        }
+      },
+
+      /** Get messages for a specific conversation */
+      getMessages: async (conversationId) => {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/messages?conversation_id=${conversationId}`,
+            {
+              method: "GET",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+            }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            return data.messages || [];
+          }
+          return [];
+        } catch (error) {
+          console.error("Error fetching conversation messages:", error);
+          return [];
+        }
+      },
+
+      /** Send a message — auto-creates conversation if conversation_id is omitted */
+      sendMessage: async ({ conversationId, customerId, proId, bookingRequestId, message, senderType } = {}) => {
+        try {
+          const body = { message };
+          if (conversationId) body.conversation_id = conversationId;
+          if (customerId) body.customer_id = customerId;
+          if (proId) body.pro_id = proId;
+          if (bookingRequestId) body.booking_request_id = bookingRequestId;
+          if (senderType) body.sender_type = senderType;
+
+          const response = await fetch(`${API_BASE_URL}/messages`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (response.ok) {
+            return await response.json();
+          }
+          const error = await response.json();
+          throw new Error(error.detail || "Failed to send message");
+        } catch (error) {
+          console.error("Error sending message:", error);
+          throw error;
+        }
+      },
+
+      /** Mark all messages in a conversation as read for the current user */
+      markRead: async (conversationId) => {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/conversations/${conversationId}/read`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+            }
+          );
+          return response.ok;
+        } catch (error) {
+          console.error("Error marking conversation read:", error);
+          return false;
+        }
+      },
+    },
   },
 };

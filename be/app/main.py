@@ -569,14 +569,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     plain_password = plain_password[:72].encode('utf-8')
     return bcrypt.checkpw(plain_password, hashed_password.encode('utf-8'))
 
-def create_access_token(tasker_id: str, email: str, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(tasker_id: str, email: str, user_type: str = "customer", expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token"""
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"tasker_id": tasker_id, "email": email, "exp": expire}
+    to_encode = {"tasker_id": tasker_id, "email": email, "user_type": user_type, "exp": expire}
     try:
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         # Handle both old (bytes) and new (str) return types
@@ -911,7 +911,7 @@ async def login(request: LoginRequest, response: Response):
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         # Create token
-        access_token = create_access_token(user_id, request.email)
+        access_token = create_access_token(user_id, request.email, actual_user_type)
         
         # Set HTTP-only secure cookie
         set_auth_cookie(response, access_token)
@@ -992,7 +992,7 @@ async def signup(request: SignupRequest, response: Response):
                 profile_image=f"https://i.pravatar.cc/150?u={request.email}"
             )
         
-        access_token = create_access_token(user_id, request.email)
+        access_token = create_access_token(user_id, request.email, request.user_type)
         set_auth_cookie(response, access_token)
         
         return {

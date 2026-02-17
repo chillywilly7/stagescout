@@ -217,9 +217,21 @@ function BookingsList({ bookings, scoutProfile }) {
 
 // Messages View Component
 function MessagesView({ bookings, scoutEmail }) {
-  const bookingsWithMessages = bookings.filter((b) => b.status !== 'declined');
+  const { data: conversations = [], isLoading } = useQuery({
+    queryKey: ['proConversations'],
+    queryFn: () => stagepro.entities.Conversation.list(),
+    refetchInterval: 10000,
+  });
 
-  if (bookingsWithMessages.length === 0) {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-burnt-orange" />
+      </div>
+    );
+  }
+
+  if (conversations.length === 0) {
     return (
       <Card className="bg-white/5 border-white/10">
         <CardContent className="py-12 text-center">
@@ -227,28 +239,44 @@ function MessagesView({ bookings, scoutEmail }) {
           <p className="text-gray-400">No messages yet</p>
         </CardContent>
       </Card>);
-
   }
 
   return (
-    <div className="space-y-4">
-      {bookingsWithMessages.map((booking) =>
-      <Link key={booking.id} to={createPageUrl('BookingChat') + `?id=${booking.id}`}>
-          <Card className="bg-white/5 border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-white">{booking.requester_name}</h4>
-                <p className="text-sm text-gray-400">
-                  {format(new Date(booking.event_date), 'MMM d, yyyy')}
-                </p>
-              </div>
-              <Badge className="bg-burnt-orange/20 text-burnt-orange">
-                View Chat
-              </Badge>
-            </CardContent>
-          </Card>
-        </Link>
-      )}
+    <div className="space-y-3">
+      {conversations.map((conv) => {
+        const unread = conv.unread_count || 0;
+        return (
+          <Link key={conv.id} to={createPageUrl('BookingChat') + `?conversation=${conv.id}${conv.booking_request_id ? `&id=${conv.booking_request_id}` : ''}`}>
+            <Card className="bg-white/5 border-white/10 hover:bg-white/10 transition-colors cursor-pointer mb-2">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-white truncate">{conv.customer_name || 'Customer'}</h4>
+                    {unread > 0 && (
+                      <span className="bg-burnt-orange text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
+                        {unread}
+                      </span>
+                    )}
+                  </div>
+                  {conv.last_message && (
+                    <p className="text-sm text-gray-400 truncate mt-1">
+                      {conv.last_message}
+                    </p>
+                  )}
+                  {conv.last_message_at && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {format(new Date(conv.last_message_at), 'MMM d, h:mm a')}
+                    </p>
+                  )}
+                </div>
+                <Badge className="bg-burnt-orange/20 text-burnt-orange shrink-0 ml-3">
+                  View Chat
+                </Badge>
+              </CardContent>
+            </Card>
+          </Link>
+        );
+      })}
     </div>);
 
 }
