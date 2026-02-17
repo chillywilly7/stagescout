@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Response, Cookie, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict
 import json
 import os
@@ -16,6 +16,12 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
+
+# Import data layer for database/JSON abstraction
+try:
+    from . import data_layer
+except ImportError:
+    import data_layer
 
 # Configuration
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")  # "development" or "production"
@@ -32,6 +38,7 @@ if not _secret_from_env:
 SECRET_KEY = _secret_from_env
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Data file paths
 DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/taskers.json")
 RESET_CODE_EXPIRE_MINUTES = 15
 
@@ -604,10 +611,7 @@ def set_auth_cookie(response: Response, token: str):
         path="/",
     )
 
-# Data file paths
-CUSTOMER_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/CustomerAccount.json")
-PRO_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/ProAccount.json")
-USERS_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/users.json")
+
 
 # In-memory store for verification codes (email verification, not password reset)
 verification_codes: Dict[str, dict] = {}
@@ -737,65 +741,6 @@ The StagePros Team
         traceback.print_exc()
         return False
 
-# ============ Unified User Data Functions ============
-
-def load_users():
-    """Load all users from unified JSON file"""
-    try:
-        with open(USERS_DATA_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data.get('users', [])
-    except FileNotFoundError:
-        return []
-
-def save_users(users: list) -> bool:
-    """Save all users to unified JSON file"""
-    try:
-        with open(USERS_DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump({"users": users}, f, indent=2)
-        return True
-    except Exception as e:
-        print(f"Error saving users: {e}")
-        return False
-
-def get_user_by_email(email: str):
-    """Get user by email (checks all users regardless of type)"""
-    users = load_users()
-    return next((u for u in users if u.get('email', '').lower() == email.lower()), None)
-
-def generate_user_id():
-    """Generate a new unique user ID"""
-    return secrets.token_hex(12)
-
-# Legacy functions for backwards compatibility - now use unified users.json
-def load_customers():
-    """Load customers from unified users file"""
-    users = load_users()
-    return [u for u in users if u.get('user_type') == 'customer']
-
-def save_customers(customers):
-    """Save customers to unified users file"""
-    users = load_users()
-    # Remove existing customers
-    users = [u for u in users if u.get('user_type') != 'customer']
-    # Add updated customers
-    users.extend(customers)
-    save_users(users)
-
-def load_pros():
-    """Load pro accounts from unified users file"""
-    users = load_users()
-    return [u for u in users if u.get('user_type') == 'pro']
-
-def save_pros(pros):
-    """Save pro accounts to unified users file"""
-    users = load_users()
-    # Remove existing pros
-    users = [u for u in users if u.get('user_type') != 'pro']
-    # Add updated pros
-    users.extend(pros)
-    save_users(users)
-
 # Routes
 @app.get("/api/health")
 async def health():
@@ -805,19 +750,15 @@ async def health():
 @app.get("/api/customers")
 async def list_customers(email: Optional[str] = None, is_verified: Optional[str] = None, current_user: dict = Depends(verify_token)):
     """Get list of customers with optional filtering"""
-    customers = load_customers()
-    
-    # Apply filters
-    if email:
-        customers = [c for c in customers if c.get('email') == email]
-    if is_verified:
-        # Convert string parameter to boolean for comparison
-        # is_verified in database is a boolean, but query param comes as string
+    is_verified_bool = None
+    if is_verified is not None:
         is_verified_bool = is_verified.lower() == 'true'
-        customers = [c for c in customers if c.get('is_verified', False) == is_verified_bool]
+    
+    customers = await data_layer.get_all_users(role='customer', email=email, is_verified=is_verified_bool)
     
     # Remove sensitive fields
     for customer in customers:
+        customer.pop('password_hash', None)
         customer.pop('password', None)
         customer.pop('verification_code', None)
     
@@ -826,58 +767,44 @@ async def list_customers(email: Optional[str] = None, is_verified: Optional[str]
 @app.post("/api/customers")
 async def create_customer(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new customer account"""
-    customers = load_customers()
-    
     # Check if email already exists
-    existing = next((c for c in customers if c.get('email') == data.get('email')), None)
-    if existing:
+    email_check = await data_layer.check_email_exists(data.get('email', ''))
+    if email_check.get('exists'):
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Generate ID and verification code
-    import uuid
-    import random
-    new_customer = {
-        "id": str(uuid.uuid4())[:24],
-        "email": data.get('email'),
-        "password": data.get('password'),
-        "name": data.get('name', ''),
-        "phone": data.get('phone', ''),
-        "preferences": data.get('preferences', ''),
-        "verification_code": str(random.randint(100000, 999999)),
-        "is_verified": "false",
-        "created_date": datetime.utcnow().isoformat(),
-        "updated_date": datetime.utcnow().isoformat(),
-        "created_by_id": "",
-        "created_by": data.get('email'),
-        "is_sample": "false"
-    }
+    password = data.get('password', '')
+    if password and not password.startswith('$2b$'):
+        password = bcrypt.hashpw(password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
-    customers.append(new_customer)
-    save_customers(customers)
+    new_user = await data_layer.create_user(
+        email=data.get('email', ''),
+        password_hash=password,
+        name=data.get('name', ''),
+        phone=data.get('phone', ''),
+        role='customer'
+    )
     
     # Return without sensitive data
-    return_customer = {k: v for k, v in new_customer.items() if k not in ['password', 'verification_code']}
-    return {"customer": return_customer, "message": "Account created successfully"}
+    new_user.pop('password_hash', None)
+    return {"customer": new_user, "message": "Account created successfully"}
 
 @app.put("/api/customers/{customer_id}")
 async def update_customer(customer_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update a customer account"""
-    customers = load_customers()
+    IGNORE_FIELDS = {'id', 'created_at', 'created_date', 'created_by_id', 'created_by', 'role', 'email'}
     
-    customer_idx = next((i for i, c in enumerate(customers) if c.get('id') == customer_id), None)
-    if customer_idx is None:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    
-    # Update fields
+    update_fields = {}
     for key, value in data.items():
-        if key not in ['id', 'created_date', 'created_by_id', 'created_by']:
-            # Hash password if being updated
-            if key == 'password' and value and not value.startswith('$2b$'):
-                value = bcrypt.hashpw(value[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            customers[customer_idx][key] = value
+        if key in IGNORE_FIELDS:
+            continue
+        if key == 'password' and value and not value.startswith('$2b$'):
+            update_fields['password_hash'] = bcrypt.hashpw(value[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        else:
+            update_fields[key] = value
     
-    customers[customer_idx]['updated_date'] = datetime.utcnow().isoformat()
-    save_customers(customers)
+    updated = await data_layer.update_user(customer_id, **update_fields)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Customer not found")
     
     return {"message": "Customer updated successfully"}
 
@@ -886,19 +813,15 @@ async def update_customer(customer_id: str, data: dict, current_user: dict = Dep
 @app.get("/api/pros")
 async def list_pros(email: Optional[str] = None, is_verified: Optional[str] = None, current_user: dict = Depends(verify_token)):
     """Get list of pro accounts with optional filtering"""
-    pros = load_pros()
-    
-    # Apply filters
-    if email:
-        pros = [p for p in pros if p.get('email', '').lower() == email.lower()]
-    if is_verified:
-        # Convert string parameter to boolean for comparison
-        # is_verified in database is a boolean, but query param comes as string
+    is_verified_bool = None
+    if is_verified is not None:
         is_verified_bool = is_verified.lower() == 'true'
-        pros = [p for p in pros if p.get('is_verified', False) == is_verified_bool]
+    
+    pros = await data_layer.get_all_users(role='pro', email=email, is_verified=is_verified_bool)
     
     # Remove sensitive fields
     for pro in pros:
+        pro.pop('password_hash', None)
         pro.pop('password', None)
         pro.pop('verification_code', None)
     
@@ -907,54 +830,51 @@ async def list_pros(email: Optional[str] = None, is_verified: Optional[str] = No
 @app.post("/api/pros")
 async def create_pro(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new pro account"""
-    pros = load_pros()
-    
     # Check if email already exists
-    existing = next((p for p in pros if p.get('email', '').lower() == data.get('email', '').lower()), None)
-    if existing:
+    email_check = await data_layer.check_email_exists(data.get('email', ''))
+    if email_check.get('exists'):
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    import uuid
+    password = data.get('password', '')
+    if password and not password.startswith('$2b$'):
+        password = bcrypt.hashpw(password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
-    new_pro = {
-        "email": data.get('email'),
-        "password": data.get('password', ''),
-        "verification_code": data.get('verification_code', ''),
-        "is_verified": data.get('is_verified', 'false'),
-        "scout_id": data.get('scout_id', ''),
-        "id": str(uuid.uuid4())[:24],
-        "created_date": datetime.utcnow().isoformat(),
-        "updated_date": datetime.utcnow().isoformat(),
-        "created_by_id": "",
-        "created_by": data.get('email'),
-        "is_sample": "false"
-    }
+    new_user = await data_layer.create_user(
+        email=data.get('email', ''),
+        password_hash=password,
+        name=data.get('name', ''),
+        phone=data.get('phone', ''),
+        role='pro'
+    )
     
-    pros.append(new_pro)
-    save_pros(pros)
+    user_id = new_user.get('id')
     
-    return_pro = {k: v for k, v in new_pro.items() if k not in ['password', 'verification_code']}
-    return {"pro": return_pro, "id": new_pro['id'], "message": "Account created successfully"}
+    # Also create pro profile
+    await data_layer.create_pro_profile(
+        user_id=user_id,
+        business_name=data.get('name', 'Stage Pro')
+    )
+    
+    new_user.pop('password_hash', None)
+    return {"pro": new_user, "id": user_id, "message": "Account created successfully"}
 
 @app.put("/api/pros/{pro_id}")
 async def update_pro(pro_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update a pro account"""
-    pros = load_pros()
+    IGNORE_FIELDS = {'id', 'created_at', 'created_date', 'created_by_id', 'created_by', 'role', 'email'}
     
-    pro_idx = next((i for i, p in enumerate(pros) if p.get('id') == pro_id), None)
-    if pro_idx is None:
-        raise HTTPException(status_code=404, detail="Pro account not found")
-    
-    # Update fields
+    update_fields = {}
     for key, value in data.items():
-        if key not in ['id', 'created_date', 'created_by_id', 'created_by']:
-            # Hash password if being updated
-            if key == 'password' and value and not value.startswith('$2b$'):
-                value = bcrypt.hashpw(value[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            pros[pro_idx][key] = value
+        if key in IGNORE_FIELDS:
+            continue
+        if key == 'password' and value and not value.startswith('$2b$'):
+            update_fields['password_hash'] = bcrypt.hashpw(value[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        else:
+            update_fields[key] = value
     
-    pros[pro_idx]['updated_date'] = datetime.utcnow().isoformat()
-    save_pros(pros)
+    updated = await data_layer.update_user(pro_id, **update_fields)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Pro account not found")
     
     return {"message": "Pro account updated successfully"}
 
@@ -968,32 +888,26 @@ async def login(request: LoginRequest, response: Response):
         user_id = None
         actual_user_type = request.user_type
         
-        # First check unified users store
-        user = get_user_by_email(request.email)
+        # Check using data_layer (supports both JSON and PostgreSQL)
+        user = await data_layer.get_user_by_email(request.email, role=request.user_type)
+        
         if user:
-            user_id = user.get('id', '') if user.get('user_type') == 'customer' else user.get('tasker_id', user.get('id', ''))
-            actual_user_type = user.get('user_type', request.user_type)
-            
-            # If user exists but is different type than requested, inform them
-            if actual_user_type != request.user_type:
+            user_id = user.get('id', '')
+            actual_user_type = user.get('role') or user.get('user_type', request.user_type)
+        else:
+            # Check if user exists with different role
+            any_user = await data_layer.get_user_by_email(request.email)
+            if any_user:
+                other_type = any_user.get('role') or any_user.get('user_type', 'user')
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"This email is registered as a {actual_user_type} account. Please use the {actual_user_type} login."
+                    detail=f"This email is registered as a {other_type} account. Please use the {other_type} login."
                 )
-        else:
-            # Fall back to checking taskers.json for legacy pro accounts
-            if request.user_type == "pro":
-                taskers = load_taskers()
-                user = next((t for t in taskers if t['email'].lower() == request.email.lower()), None)
-                if user:
-                    user_id = user.get('tasker_id', '')
-                    actual_user_type = "pro"
-        
-        if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         # Verify password (supports both hashed and legacy plaintext)
-        if not verify_password(request.password, user.get('password', '')):
+        password_hash = user.get('password_hash') or user.get('password', '')
+        if not verify_password(request.password, password_hash):
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         # Create token
@@ -1035,141 +949,66 @@ async def signup(request: SignupRequest, response: Response):
     # Normalize phone for consistent storage and comparison
     normalized_phone = normalize_phone(request.phone)
     
-    # CRITICAL: Check if email exists in ANY account type (unified check)
-    existing_user = get_user_by_email(request.email)
-    if existing_user:
-        existing_type = existing_user.get('user_type', 'user')
+    # CRITICAL: Check if email exists in ANY account type (using data_layer)
+    email_check = await data_layer.check_email_exists(request.email)
+    if email_check.get("exists"):
+        existing_type = email_check.get('user_type', 'user')
         raise HTTPException(status_code=400, detail=f"Email already registered as {existing_type} account")
     
-    # Also check taskers.json for pro accounts
-    taskers = load_taskers()
-    if any(t['email'].lower() == request.email.lower() for t in taskers):
-        raise HTTPException(status_code=400, detail="Email already registered as pro account")
-    
-    # Check for duplicate phone across ALL users (using normalized format)
-    users = load_users()
-    for user in users:
-        user_phone = normalize_phone(user.get('phone', ''))
-        if user_phone and user_phone == normalized_phone:
-            raise HTTPException(status_code=400, detail=f"Phone number already registered as {user.get('user_type', 'user')} account")
-    
-    # Also check taskers for phone
-    for tasker in taskers:
-        tasker_phone = normalize_phone(tasker.get('phone', ''))
-        if tasker_phone and tasker_phone == normalized_phone:
-            raise HTTPException(status_code=400, detail="Phone number already registered as pro account")
+    # Check for duplicate phone across ALL users (using data_layer)
+    phone_check = await data_layer.check_phone_exists(normalized_phone)
+    if phone_check.get("exists"):
+        raise HTTPException(status_code=400, detail=f"Phone number already registered as {phone_check.get('user_type', 'user')} account")
     
     # Strong password rules for all accounts
     password_valid, password_error = validate_password(request.password)
     if not password_valid:
         raise HTTPException(status_code=400, detail=password_error)
     
-    if request.user_type == "customer":
-        # Customer signup - save to unified users.json
-        new_customer = {
-            "id": generate_user_id(),
-            "email": request.email.lower().strip(),
-            "name": request.name or "Customer",
-            "phone": normalized_phone,
-            "password": bcrypt.hashpw(request.password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
-            "user_type": "customer",
-            "is_verified": True,
-            "preferences": {},
-            "security_question_1": request.security_question_1 or "What is your pet's name?",
-            "security_answer_1": request.security_answer_1.lower().strip() if request.security_answer_1 else "",
-            "security_question_2": request.security_question_2 or "What city were you born in?",
-            "security_answer_2": request.security_answer_2.lower().strip() if request.security_answer_2 else "",
-            "created_date": datetime.utcnow().isoformat(),
-            "updated_date": datetime.utcnow().isoformat()
-        }
+    # Hash password
+    hashed_password = bcrypt.hashpw(request.password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    try:
+        # Create user via data_layer (handles both JSON and PostgreSQL)
+        new_user = await data_layer.create_user(
+            email=request.email.lower().strip(),
+            password_hash=hashed_password,
+            name=request.name or ("Customer" if request.user_type == "customer" else "Stage Pro"),
+            phone=normalized_phone,
+            role=request.user_type,
+            security_question_1=request.security_question_1 or "What is your pet's name?",
+            security_answer_1=request.security_answer_1.lower().strip() if request.security_answer_1 else "",
+            security_question_2=request.security_question_2 or "What city were you born in?",
+            security_answer_2=request.security_answer_2.lower().strip() if request.security_answer_2 else ""
+        )
         
-        users = load_users()
-        users.append(new_customer)
-        save_users(users)
+        user_id = new_user.get('id')
         
-        access_token = create_access_token(new_customer['id'], request.email)
+        # If pro, also create pro profile
+        if request.user_type == "pro":
+            await data_layer.create_pro_profile(
+                user_id=user_id,
+                business_name=request.name or "Stage Pro",
+                profile_image=f"https://i.pravatar.cc/150?u={request.email}"
+            )
+        
+        access_token = create_access_token(user_id, request.email)
         set_auth_cookie(response, access_token)
         
         return {
             "message": "Account created successfully",
             "user": {
-                "id": new_customer['id'],
-                "name": new_customer['name'],
-                "email": new_customer['email'],
-                "phone": new_customer['phone'],
-                "user_type": "customer"
+                "id": user_id,
+                "name": new_user.get('name'),
+                "email": new_user.get('email'),
+                "phone": new_user.get('phone'),
+                "user_type": request.user_type
             }
         }
-    else:
-        # Pro signup - save to both users.json and taskers.json for now
-        new_user_id = generate_user_id()
-        new_tasker_id = generate_tasker_id()
-        hashed_password = bcrypt.hashpw(request.password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        
-        # Add to unified users.json
-        new_user = {
-            "id": new_user_id,
-            "email": request.email.lower().strip(),
-            "name": request.name or "Stage Pro",
-            "phone": normalized_phone,
-            "password": hashed_password,
-            "user_type": "pro",
-            "tasker_id": new_tasker_id,
-            "is_verified": False,
-            "created_date": datetime.utcnow().isoformat(),
-            "updated_date": datetime.utcnow().isoformat()
-        }
-        
-        users = load_users()
-        users.append(new_user)
-        save_users(users)
-        
-        # Also add to taskers.json (full profile data)
-        new_tasker = {
-            "tasker_id": new_tasker_id,
-            "name": request.name or "Stage Pro",
-            "email": request.email.lower().strip(),
-            "phone": normalized_phone,
-            "password": hashed_password,
-            "auth_token": "",
-            "profile_image": f"https://i.pravatar.cc/150?u={request.email}",
-            "service_category": "other",
-            "bio": "",
-            "hourly_rate": 0,
-            "daily_rate": 0,
-            "zip_code": "",
-            "service_radius_miles": 25,
-            "portfolio_images": [],
-            "equipment_list": [],
-            "average_rating": 0,
-            "total_reviews": 0,
-            "years_experience": 0,
-            "is_verified": False,
-            "is_pro": True,
-            "security_question_1": request.security_question_1 or "What is your pet's name?",
-            "security_answer_1": (request.security_answer_1 or "").lower(),
-            "security_question_2": request.security_question_2 or "What city were you born in?",
-            "security_answer_2": (request.security_answer_2 or "").lower()
-        }
-        
-        taskers.append(new_tasker)
-        
-        if not save_taskers(taskers):
-            raise HTTPException(status_code=500, detail="Failed to create account")
-        
-        access_token = create_access_token(new_tasker_id, request.email)
-        set_auth_cookie(response, access_token)
-        
-        return {
-            "message": "Account created successfully",
-            "user": {
-                "id": new_tasker_id,
-                "name": new_tasker['name'],
-                "email": new_tasker['email'],
-                "phone": new_tasker['phone'],
-                "user_type": "pro"
-            }
-        }
+    except Exception as e:
+        print(f"Signup error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to create account")
 
 @app.post("/api/auth/check-email")
 async def check_email(request: CheckEmailRequest):
@@ -1181,16 +1020,10 @@ async def check_email(request: CheckEmailRequest):
     
     normalized_email = request.email.lower().strip()
     
-    # Check unified users store (customers and pros)
-    user = get_user_by_email(normalized_email)
-    if user:
-        return {"exists": True, "email": normalized_email, "user_type": user.get('user_type')}
-    
-    # Also check taskers.json for legacy pro accounts
-    taskers = load_taskers()
-    tasker = next((t for t in taskers if t['email'].lower() == normalized_email), None)
-    if tasker:
-        return {"exists": True, "email": normalized_email, "user_type": "pro"}
+    # Check using data_layer (supports both JSON and PostgreSQL)
+    result = await data_layer.check_email_exists(normalized_email)
+    if result.get("exists"):
+        return {"exists": True, "email": normalized_email, "user_type": result.get('user_type')}
     
     return {"exists": False, "email": normalized_email}
 
@@ -1206,19 +1039,10 @@ async def check_phone(request: CheckPhoneRequest):
     
     normalized = normalize_phone(request.phone)
     
-    # Check unified users store (customers and pros)
-    users = load_users()
-    for user in users:
-        user_phone = normalize_phone(user.get('phone', ''))
-        if user_phone and user_phone == normalized:
-            return {"exists": True, "phone": normalized, "user_type": user.get('user_type'), "valid": True}
-    
-    # Also check taskers.json for legacy pro accounts
-    taskers = load_taskers()
-    for tasker in taskers:
-        tasker_phone = normalize_phone(tasker.get('phone', ''))
-        if tasker_phone and tasker_phone == normalized:
-            return {"exists": True, "phone": normalized, "user_type": "pro", "valid": True}
+    # Check using data_layer (supports both JSON and PostgreSQL)
+    result = await data_layer.check_phone_exists(normalized)
+    if result.get("exists"):
+        return {"exists": True, "phone": normalized, "user_type": result.get('user_type'), "valid": True}
     
     return {"exists": False, "phone": normalized, "valid": True}
 
@@ -1230,10 +1054,10 @@ async def check_name(request: CheckNameRequest):
     
     normalized_name = request.name.lower().strip()
     
-    # Check Scout.json for existing names
-    scouts = load_scouts()
+    # Check pro profiles for existing names
+    scouts = await data_layer.get_all_pro_profiles(limit=500)
     for scout in scouts:
-        if scout.get('name', '').lower().strip() == normalized_name:
+        if (scout.get('business_name', '') or scout.get('name', '')).lower().strip() == normalized_name:
             return {"exists": True, "name": request.name, "valid": True}
     
     return {"exists": False, "name": request.name, "valid": True}
@@ -1241,104 +1065,60 @@ async def check_name(request: CheckNameRequest):
 @app.post("/api/auth/security-questions")
 async def get_security_questions(request: SecurityQuestionsRequest):
     """Get security questions for password reset"""
-    if request.user_type == "customer":
-        users = load_users()
-        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'customer'), None)
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        questions = []
-        if user.get('security_question_1'):
-            questions.append(user['security_question_1'])
-        if user.get('security_question_2'):
-            questions.append(user['security_question_2'])
-        
-        return {"questions": questions, "email": request.email}
-    else:
-        users = load_users()
-        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'pro'), None)
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        questions = []
-        if user.get('security_question_1'):
-            questions.append(user['security_question_1'])
-        if user.get('security_question_2'):
-            questions.append(user['security_question_2'])
-        
-        return {"questions": questions, "email": request.email}
+    # Use data_layer (supports both JSON and PostgreSQL)
+    result = await data_layer.get_security_questions(request.email, role=request.user_type)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    questions = []
+    if result.get('security_question_1'):
+        questions.append(result['security_question_1'])
+    if result.get('security_question_2'):
+        questions.append(result['security_question_2'])
+    
+    return {"questions": questions, "email": request.email}
 
 @app.post("/api/auth/forgot-password")
 async def forgot_password(request: ForgotPasswordRequest):
     """Reset password using security questions - verify answers and create reset session"""
-    if request.user_type == "customer":
-        users = load_users()
-        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'customer'), None)
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Verify security answers (case-insensitive)
-        answer1_correct = request.security_answer_1.lower().strip() == (user.get('security_answer_1') or '').lower().strip()
-        answer2_correct = request.security_answer_2.lower().strip() == (user.get('security_answer_2') or '').lower().strip()
-        
-        if not (answer1_correct and answer2_correct):
-            raise HTTPException(status_code=401, detail="Security answers do not match")
-        
-        # Create a verified reset session (same as email code verification)
-        email_key = request.email.lower()
-        password_reset_codes[email_key] = {
-            "code": "SECURITY_VERIFIED",
-            "expires": datetime.utcnow() + timedelta(minutes=15),
-            "verified": True
-        }
-        
-        return {"message": "Security answers verified", "verified": True}
-    else:
-        users = load_users()
-        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'pro'), None)
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Verify security answers (case-insensitive)
-        answer1_correct = request.security_answer_1.lower().strip() == (user.get('security_answer_1') or '').lower().strip()
-        answer2_correct = request.security_answer_2.lower().strip() == (user.get('security_answer_2') or '').lower().strip()
-        
-        if not (answer1_correct and answer2_correct):
-            raise HTTPException(status_code=401, detail="Security answers do not match")
-        
-        # Create a verified reset session (same as email code verification)
-        email_key = request.email.lower()
-        password_reset_codes[email_key] = {
-            "code": "SECURITY_VERIFIED",
-            "expires": datetime.utcnow() + timedelta(minutes=15),
-            "verified": True
-        }
-        
-        return {"message": "Security answers verified", "verified": True}
+    # Get user via data_layer (supports both JSON and PostgreSQL)
+    user = await data_layer.get_user_by_email(request.email, role=request.user_type)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get security answers (stored in password_hash fields or legacy fields)
+    stored_answer_1 = (user.get('security_answer_1_hash') or user.get('security_answer_1') or '').lower().strip()
+    stored_answer_2 = (user.get('security_answer_2_hash') or user.get('security_answer_2') or '').lower().strip()
+    
+    # Verify security answers (case-insensitive)
+    answer1_correct = request.security_answer_1.lower().strip() == stored_answer_1
+    answer2_correct = request.security_answer_2.lower().strip() == stored_answer_2
+    
+    if not (answer1_correct and answer2_correct):
+        raise HTTPException(status_code=401, detail="Security answers do not match")
+    
+    # Create a verified reset session (same as email code verification)
+    email_key = request.email.lower()
+    password_reset_codes[email_key] = {
+        "code": "SECURITY_VERIFIED",
+        "expires": datetime.now(timezone.utc) + timedelta(minutes=15),
+        "verified": True
+    }
+    
+    return {"message": "Security answers verified", "verified": True}
 
 @app.post("/api/auth/forgot-password/send-code")
 async def send_password_reset_code(request: SendResetCodeRequest):
     """Send password reset code to user's email"""
-    user = None
-    user_name = "User"
-    
-    if request.user_type == "customer":
-        users = load_users()
-        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'customer'), None)
-        if user:
-            user_name = user.get('name', 'Customer')
-    else:
-        users = load_users()
-        user = next((u for u in users if u['email'].lower() == request.email.lower() and u.get('user_type') == 'pro'), None)
-        if user:
-            user_name = user.get('name', 'Stage Pro')
+    # Get user via data_layer
+    user = await data_layer.get_user_by_email(request.email, role=request.user_type)
     
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email address")
+    
+    user_name = user.get('name', 'User')
     
     code = generate_reset_code()
     store_reset_code(request.email, code)
@@ -1371,16 +1151,9 @@ async def reset_password_with_code(request: ResetPasswordWithCodeRequest):
     if not password_valid:
         raise HTTPException(status_code=400, detail=password_error)
     
-    users = load_users()
-    user_type = request.user_type
-    user_idx = next((i for i, u in enumerate(users) if u['email'].lower() == request.email.lower() and u.get('user_type') == user_type), None)
-    
-    if user_idx is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    users[user_idx]['password'] = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    users[user_idx]['updated_date'] = datetime.utcnow().isoformat()
-    save_users(users)
+    # Update password via data_layer
+    hashed_password = bcrypt.hashpw(request.new_password[:72].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    await data_layer.update_password(request.email, hashed_password, role=request.user_type)
     
     clear_reset_code(request.email)
     return {"message": "Password has been reset successfully"}
@@ -1447,7 +1220,7 @@ async def log_page_view(request: Request):
 
 @app.get("/api/auth/me")
 async def get_current_user(access_token: Optional[str] = Cookie(None)):
-    """Get current authenticated user — searches unified users store and legacy taskers"""
+    """Get current authenticated user — uses data_layer for database support"""
     if not access_token:
         return None
     
@@ -1459,13 +1232,13 @@ async def get_current_user(access_token: Optional[str] = Cookie(None)):
         if not email:
             return None
         
-        # 1. Check unified users.json (customers + pros)
-        user = get_user_by_email(email)
+        # Check using data_layer (supports both JSON and PostgreSQL)
+        user = await data_layer.get_user_by_email(email)
         if user:
-            user_type = user.get('user_type', 'pro')
+            user_type = user.get('role') or user.get('user_type', 'pro')
             return {
-                "id": user.get('tasker_id', user.get('id', '')),
-                "tasker_id": user.get('tasker_id', user.get('id', '')),
+                "id": user.get('id', ''),
+                "tasker_id": user.get('id', ''),
                 "name": user.get('name', ''),
                 "email": user.get('email', ''),
                 "phone": user.get('phone', ''),
@@ -1473,22 +1246,6 @@ async def get_current_user(access_token: Optional[str] = Cookie(None)):
                 "user_type": user_type,
                 "is_pro": user_type == 'pro',
             }
-        
-        # 2. Fall back to legacy taskers.json
-        if token_id:
-            taskers = load_taskers()
-            tasker = next((t for t in taskers if t['tasker_id'] == token_id), None)
-            if tasker:
-                return {
-                    "id": tasker['tasker_id'],
-                    "tasker_id": tasker['tasker_id'],
-                    "name": tasker['name'],
-                    "email": tasker['email'],
-                    "phone": tasker['phone'],
-                    "full_name": tasker['name'],
-                    "user_type": "pro",
-                    "is_pro": tasker.get('is_pro', True),
-                }
         
         return None
     except jwt.InvalidTokenError:
@@ -1542,30 +1299,6 @@ async def get_taskers_by_category(category: str, limit: int = 10):
     
     return {"taskers": filtered[:limit]}
 
-# Scout Data File
-SCOUT_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/Scout.json")
-
-def load_scouts():
-    """Load scouts from JSON file"""
-    try:
-        with open(SCOUT_DATA_FILE, 'r', encoding='utf-8') as f:
-            scouts = json.load(f)
-            return scouts if isinstance(scouts, list) else []
-    except FileNotFoundError:
-        return []
-    except json.JSONDecodeError:
-        return []
-
-def save_scouts(scouts: list) -> bool:
-    """Save scouts to JSON file"""
-    try:
-        with open(SCOUT_DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(scouts, f, indent=2)
-        return True
-    except Exception as e:
-        print(f"Error saving scouts: {e}")
-        return False
-
 @app.get("/api/scouts")
 async def list_scouts(
     sort_by: str = "sxsw_years",
@@ -1578,29 +1311,28 @@ async def list_scouts(
     experience_level: Optional[str] = None
 ):
     """Get list of scouts with optional sorting and filtering"""
-    scouts = load_scouts()
+    # Use data_layer for database support
+    services_list = [services] if services else None
     
-    # Apply filters
-    # Filter by ID first (most specific filter)
+    # Parse is_verified parameter
+    verified_bool = None
+    if is_verified is not None:
+        verified_bool = is_verified.lower() == 'true'
+    
+    scouts = await data_layer.get_all_pro_profiles(
+        services=services_list,
+        location=location,
+        experience_level=experience_level,
+        is_verified=verified_bool,
+        limit=limit
+    )
+    
+    # Apply additional filters not handled by data_layer
     if id:
         scouts = [s for s in scouts if s.get('id') == id]
     
-    # Filter by email (case-insensitive)
     if email:
         scouts = [s for s in scouts if s.get('email', '').lower() == email.lower()]
-    
-    if is_verified is not None:
-        verified = is_verified.lower() == 'true'
-        scouts = [s for s in scouts if s.get('is_verified') == verified]
-    
-    if services:
-        scouts = [s for s in scouts if services in s.get('services', [])]
-    
-    if location:
-        scouts = [s for s in scouts if s.get('location') == location]
-    
-    if experience_level:
-        scouts = [s for s in scouts if s.get('experience_level') == experience_level]
     
     # Sort scouts
     if sort_by == "sxsw_years":
@@ -1617,8 +1349,7 @@ async def list_scouts(
 @app.get("/api/scouts/{scout_id}")
 async def get_scout(scout_id: str):
     """Get single scout by ID"""
-    scouts = load_scouts()
-    scout = next((s for s in scouts if s.get('id') == scout_id), None)
+    scout = await data_layer.get_pro_profile_by_id(scout_id)
     
     if not scout:
         raise HTTPException(status_code=404, detail="Scout not found")
@@ -1628,69 +1359,84 @@ async def get_scout(scout_id: str):
 @app.post("/api/scouts")
 async def create_scout(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new scout profile"""
-    scouts = load_scouts()
+    user_id = current_user.get('tasker_id') if current_user else None
     
-    import uuid
-    new_scout = {
-        "id": str(uuid.uuid4())[:24],
-        "created_date": datetime.now().isoformat(),
-        **data
-    }
-    
-    scouts.append(new_scout)
-    
-    if save_scouts(scouts):
-        return {"message": "Scout created successfully", "id": new_scout["id"], "scout": new_scout}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to save scout")
+    try:
+        new_scout = await data_layer.create_pro_profile(
+            user_id=user_id or data.get('user_id', ''),
+            business_name=data.get('name', ''),
+            bio=data.get('bio', ''),
+            profile_image=data.get('profile_image', ''),
+            services=data.get('services', []),
+            venue_types=data.get('venue_types', []),
+            style_tags=data.get('style_tags', []),
+            experience_level=data.get('experience_level', 'local_shows'),
+            sxsw_years=data.get('sxsw_years', 0),
+            gear_highlights=data.get('gear_highlights', []),
+            portfolio_images=data.get('portfolio_images', []),
+            location=data.get('location', ''),
+            budget_min=data.get('budget_min'),
+            budget_max=data.get('budget_max'),
+            available_last_minute=data.get('available_last_minute', False),
+            turnaround_days=data.get('turnaround_days'),
+            availability_dates=data.get('availability_dates', [])
+        )
+        return {"message": "Scout created successfully", "id": new_scout.get("id"), "scout": new_scout}
+    except Exception as e:
+        print(f"Error creating scout: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to create scout")
 
 @app.put("/api/scouts/{scout_id}")
 async def update_scout(scout_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update an existing scout profile"""
-    scouts = load_scouts()
+    user_id = current_user.get('tasker_id') if current_user else scout_id
     
-    scout_index = next((i for i, s in enumerate(scouts) if s.get('id') == scout_id), None)
-    
-    if scout_index is None:
-        raise HTTPException(status_code=404, detail="Scout not found")
-    
-    # Update scout data
-    scouts[scout_index] = {
-        **scouts[scout_index],
-        **data,
-        "updated_date": datetime.now().isoformat()
+    # Fields that belong to the users table, NOT pro_profiles
+    USER_TABLE_FIELDS = {'name', 'phone', 'bio', 'profile_image', 'is_verified'}
+    # Fields that should never be set via update (read-only / system-managed)
+    IGNORE_FIELDS = {
+        'id', 'user_id', 'email', 'created_at', 'updated_at', 'created_date',
+        'updated_date', 'created_by_id', 'created_by', 'is_sample',
+        'rating', 'review_count', 'average_rating', 'total_reviews',
+        'password_hash', 'role', 'auth_token'
     }
     
-    if save_scouts(scouts):
-        return {"message": "Scout updated successfully", "scout": scouts[scout_index]}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to save scout")
+    try:
+        # Separate user fields from pro_profile fields
+        user_fields = {}
+        pro_fields = {}
+        for key, value in data.items():
+            if key in IGNORE_FIELDS:
+                continue
+            elif key in USER_TABLE_FIELDS:
+                user_fields[key] = value
+            else:
+                # Convert empty strings to None for numeric fields
+                if key in ('budget_min', 'budget_max', 'hourly_rate', 'daily_rate',
+                           'sxsw_years', 'turnaround_days', 'service_radius_miles') and value == '':
+                    value = None
+                pro_fields[key] = value
+        
+        # Update user table fields (name, phone, bio, profile_image)
+        if user_fields:
+            await data_layer.update_user(user_id, **user_fields)
+        
+        # Update pro_profiles table fields
+        updated_scout = await data_layer.update_pro_profile(user_id, **pro_fields)
+        if updated_scout:
+            return {"message": "Scout updated successfully", "scout": updated_scout}
+        else:
+            raise HTTPException(status_code=404, detail="Scout not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating scout: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to update scout")
 
 
 # ============ Booking Request Endpoints ============
-
-BOOKING_DATA_FILE = os.path.join(os.path.dirname(__file__), "../data/BookingRequest.json")
-
-def load_bookings():
-    """Load bookings from JSON file"""
-    try:
-        with open(BOOKING_DATA_FILE, 'r', encoding='utf-8') as f:
-            bookings = json.load(f)
-            return bookings if isinstance(bookings, list) else []
-    except FileNotFoundError:
-        return []
-    except json.JSONDecodeError:
-        return []
-
-def save_bookings(bookings: list) -> bool:
-    """Save bookings to JSON file"""
-    try:
-        with open(BOOKING_DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(bookings, f, indent=2)
-        return True
-    except Exception as e:
-        print(f"Error saving bookings: {e}")
-        return False
 
 @app.get("/api/bookings")
 async def list_bookings(
@@ -1701,63 +1447,64 @@ async def list_bookings(
     current_user: dict = Depends(verify_token)
 ):
     """Get list of booking requests with optional filtering"""
-    bookings = load_bookings()
+    # Use data_layer for database support
+    user_id = current_user.get('tasker_id') if current_user else None
+    user_type = current_user.get('user_type', 'customer') if current_user else 'customer'
     
-    # Apply filters
+    # Get bookings based on user role
+    if customer_id:
+        bookings = await data_layer.get_bookings_for_user(customer_id, 'customer')
+    elif scout_id:
+        bookings = await data_layer.get_bookings_for_user(scout_id, 'pro')
+    elif user_id:
+        bookings = await data_layer.get_bookings_for_user(user_id, user_type)
+    else:
+        bookings = []
+    
+    # Apply additional filters
     if requester_email:
         bookings = [b for b in bookings if b.get('requester_email', '').lower() == requester_email.lower()]
-    if scout_id:
-        bookings = [b for b in bookings if b.get('scout_id') == scout_id]
-    if customer_id:
-        bookings = [b for b in bookings if b.get('customer_id') == customer_id]
     if status:
         bookings = [b for b in bookings if b.get('status', '').lower() == status.lower()]
     
     return {"bookings": bookings}
 
 @app.post("/api/bookings")
-async def create_booking(data: dict, current_user: dict = Depends(verify_token)):
+async def create_booking_endpoint(data: dict, current_user: dict = Depends(verify_token)):
     """Create a new booking request"""
-    bookings = load_bookings()
-    
-    import uuid
-    new_booking = {
-        "id": str(uuid.uuid4())[:24],
-        "requester_name": data.get('requester_name', ''),
-        "requester_email": data.get('requester_email', ''),
-        "requester_phone": data.get('requester_phone', ''),
-        "scout_id": data.get('scout_id', ''),
-        "customer_id": data.get('customer_id', ''),
-        "event_date": data.get('event_date', ''),
-        "start_time": data.get('start_time', ''),
-        "end_time": data.get('end_time', ''),
-        "venue_name": data.get('venue_name', ''),
-        "venue_type": data.get('venue_type', ''),
-        "venue_area": data.get('venue_area', ''),
-        "organization": data.get('organization', ''),
-        "services_needed": data.get('services_needed', []),
-        "budget_range": data.get('budget_range', ''),
-        "message": data.get('message', ''),
-        "is_multiday": data.get('is_multiday', False),
-        "additional_dates": data.get('additional_dates', []),
-        "status": "pending",
-        "created_date": datetime.utcnow().isoformat(),
-        "updated_date": datetime.utcnow().isoformat(),
-        "created_by_id": data.get('customer_id', ''),
-        "created_by": data.get('requester_email', ''),
-        "is_sample": False
-    }
-    
-    bookings.append(new_booking)
-    save_bookings(bookings)
-    
-    return {"booking": new_booking, "id": new_booking['id'], "message": "Booking request created successfully"}
+    try:
+        customer_id = data.get('customer_id') or (current_user.get('tasker_id') if current_user else '')
+        
+        new_booking = await data_layer.create_booking(
+            customer_id=customer_id,
+            pro_id=data.get('scout_id', ''),
+            requester_name=data.get('requester_name', ''),
+            requester_email=data.get('requester_email', ''),
+            event_date=data.get('event_date', ''),
+            requester_phone=data.get('requester_phone', ''),
+            start_time=data.get('start_time', ''),
+            end_time=data.get('end_time', ''),
+            venue_name=data.get('venue_name', ''),
+            venue_type=data.get('venue_type', ''),
+            venue_area=data.get('venue_area', ''),
+            organization=data.get('organization', ''),
+            services_needed=data.get('services_needed', []),
+            budget_range=data.get('budget_range', ''),
+            message=data.get('message', ''),
+            is_multiday=data.get('is_multiday', False),
+            additional_dates=data.get('additional_dates', [])
+        )
+        
+        return {"booking": new_booking, "id": new_booking.get('id'), "message": "Booking request created successfully"}
+    except Exception as e:
+        print(f"Error creating booking: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to create booking")
 
 @app.get("/api/bookings/{booking_id}")
 async def get_booking(booking_id: str, current_user: dict = Depends(verify_token)):
     """Get single booking by ID"""
-    bookings = load_bookings()
-    booking = next((b for b in bookings if b.get('id') == booking_id), None)
+    booking = await data_layer.get_booking_by_id(booking_id)
     
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -1767,33 +1514,128 @@ async def get_booking(booking_id: str, current_user: dict = Depends(verify_token
 @app.put("/api/bookings/{booking_id}")
 async def update_booking(booking_id: str, data: dict, current_user: dict = Depends(verify_token)):
     """Update a booking request"""
-    bookings = load_bookings()
+    status = data.get('status')
+    response = data.get('pro_response')
     
-    booking_idx = next((i for i, b in enumerate(bookings) if b.get('id') == booking_id), None)
-    if booking_idx is None:
+    if status:
+        updated = await data_layer.update_booking_status(booking_id, status, response)
+        if updated:
+            return {"message": "Booking updated successfully", "booking": updated}
+        else:
+            raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # General update for non-status fields
+    IGNORE_FIELDS = {'id', 'created_at', 'created_date', 'created_by_id', 'created_by'}
+    update_fields = {k: v for k, v in data.items() if k not in IGNORE_FIELDS}
+    
+    updated = await data_layer.update_booking(booking_id, **update_fields)
+    if not updated:
         raise HTTPException(status_code=404, detail="Booking not found")
     
-    # Update fields
-    for key, value in data.items():
-        if key not in ['id', 'created_date', 'created_by_id', 'created_by']:
-            bookings[booking_idx][key] = value
-    
-    bookings[booking_idx]['updated_date'] = datetime.utcnow().isoformat()
-    save_bookings(bookings)
-    
-    return {"message": "Booking updated successfully", "booking": bookings[booking_idx]}
+    return {"message": "Booking updated successfully", "booking": updated}
 
 @app.delete("/api/bookings/{booking_id}")
 async def delete_booking(booking_id: str, current_user: dict = Depends(verify_token)):
     """Delete a booking request"""
-    bookings = load_bookings()
-    
-    booking_idx = next((i for i, b in enumerate(bookings) if b.get('id') == booking_id), None)
-    if booking_idx is None:
+    deleted = await data_layer.delete_booking(booking_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Booking not found")
     
-    deleted = bookings.pop(booking_idx)
-    save_bookings(bookings)
+    return {"message": "Booking deleted successfully", "id": deleted.get('id', booking_id)}
+
+
+# ============ Messages Endpoints ============
+
+@app.get("/api/messages")
+async def list_messages(
+    conversation_id: Optional[str] = None,
+    sender_id: Optional[str] = None,
+    current_user: dict = Depends(verify_token)
+):
+    """Get list of messages with optional filtering"""
+    if conversation_id:
+        messages = await data_layer.get_messages(conversation_id)
+    else:
+        # Get all conversations for user and their messages
+        user_id = current_user.get('tasker_id') if current_user else None
+        user_type = current_user.get('user_type', 'customer') if current_user else 'customer'
+        
+        if user_id:
+            conversations = await data_layer.get_conversations_for_user(user_id, user_type)
+            messages = []
+            for conv in conversations:
+                conv_messages = await data_layer.get_messages(conv.get('id'))
+                messages.extend(conv_messages)
+        else:
+            messages = []
     
-    return {"message": "Booking deleted successfully", "id": deleted['id']}
+    # Apply additional filters
+    if sender_id:
+        messages = [m for m in messages if m.get('sender_id') == sender_id]
+    
+    return {"messages": messages}
+
+@app.post("/api/messages")
+async def create_message(data: dict, current_user: dict = Depends(verify_token)):
+    """Create a new message"""
+    try:
+        conversation_id = data.get('conversation_id')
+        
+        # If no conversation_id, create or get one
+        if not conversation_id:
+            customer_id = data.get('customer_id')
+            pro_id = data.get('pro_id')
+            booking_request_id = data.get('booking_request_id')
+            
+            if not customer_id or not pro_id:
+                raise HTTPException(status_code=400, detail="conversation_id or both customer_id and pro_id required")
+            
+            conversation = await data_layer.get_or_create_conversation(
+                customer_id=customer_id,
+                pro_id=pro_id,
+                booking_request_id=booking_request_id
+            )
+            conversation_id = conversation.get('id')
+        
+        sender_id = data.get('sender_id') or (current_user.get('tasker_id') if current_user else '')
+        sender_type = data.get('sender_type') or (current_user.get('user_type', 'customer') if current_user else 'customer')
+        
+        new_message = await data_layer.send_message(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            sender_type=sender_type,
+            message=data.get('message', ''),
+            attachments=data.get('attachments', [])
+        )
+        
+        return {"message": new_message, "id": new_message.get('id'), "success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating message: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to send message")
+
+@app.get("/api/conversations")
+async def list_conversations(current_user: dict = Depends(verify_token)):
+    """Get all conversations for the current user"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    user_id = current_user.get('tasker_id')
+    user_type = current_user.get('user_type', 'customer')
+    
+    conversations = await data_layer.get_conversations_for_user(user_id, user_type)
+    return {"conversations": conversations}
+
+@app.post("/api/conversations/{conversation_id}/read")
+async def mark_conversation_read(conversation_id: str, current_user: dict = Depends(verify_token)):
+    """Mark all messages in a conversation as read"""
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    reader_id = current_user.get('tasker_id')
+    await data_layer.mark_messages_read(conversation_id, reader_id)
+    
+    return {"success": True, "message": "Messages marked as read"}
 
