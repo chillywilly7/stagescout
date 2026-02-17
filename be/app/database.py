@@ -402,7 +402,7 @@ async def update_pro_profile(user_id: str, **fields) -> Optional[Dict[str, Any]]
         elif key == "verification_status":
             set_clauses.append(f"{key} = ${i}::verification_status")
         elif key in ["services", "venue_types", "style_tags", "gear_highlights",
-                    "equipment_list", "portfolio_images"]:
+                    "equipment_list", "portfolio_images", "verification_documents"]:
             set_clauses.append(f"{key} = ${i}::text[]")
         elif key == "availability_dates":
             set_clauses.append(f"{key} = ${i}::date[]")

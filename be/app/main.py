@@ -1362,6 +1362,11 @@ async def create_scout(data: dict, current_user: dict = Depends(verify_token)):
     user_id = current_user.get('tasker_id') if current_user else None
     
     try:
+        # Convert date strings to datetime.date objects for PostgreSQL
+        from datetime import date as date_type
+        raw_dates = data.get('availability_dates', [])
+        parsed_dates = [date_type.fromisoformat(d) if isinstance(d, str) and d else d for d in raw_dates if d]
+
         new_scout = await data_layer.create_pro_profile(
             user_id=user_id or data.get('user_id', ''),
             business_name=data.get('name', ''),
@@ -1379,7 +1384,7 @@ async def create_scout(data: dict, current_user: dict = Depends(verify_token)):
             budget_max=data.get('budget_max'),
             available_last_minute=data.get('available_last_minute', False),
             turnaround_days=data.get('turnaround_days'),
-            availability_dates=data.get('availability_dates', [])
+            availability_dates=parsed_dates
         )
         return {"message": "Scout created successfully", "id": new_scout.get("id"), "scout": new_scout}
     except Exception as e:
@@ -1399,7 +1404,10 @@ async def update_scout(scout_id: str, data: dict, current_user: dict = Depends(v
         'id', 'user_id', 'email', 'created_at', 'updated_at', 'created_date',
         'updated_date', 'created_by_id', 'created_by', 'is_sample',
         'rating', 'review_count', 'average_rating', 'total_reviews',
-        'password_hash', 'role', 'auth_token'
+        'password_hash', 'role', 'auth_token',
+        'is_featured', 'is_pro_plus',  # admin-only flags
+        'is_active', 'email_verified', 'phone_verified',  # system-managed user fields
+        'last_login', 'preferences',  # user-table fields from JOIN
     }
     
     try:
@@ -1416,6 +1424,13 @@ async def update_scout(scout_id: str, data: dict, current_user: dict = Depends(v
                 if key in ('budget_min', 'budget_max', 'hourly_rate', 'daily_rate',
                            'sxsw_years', 'turnaround_days', 'service_radius_miles') and value == '':
                     value = None
+                # Convert date strings to datetime.date objects for PostgreSQL
+                if key == 'availability_dates' and isinstance(value, list):
+                    from datetime import date as date_type
+                    value = [date_type.fromisoformat(d) if isinstance(d, str) and d else d for d in value if d]
+                if key == 'verification_insurance_expiry' and isinstance(value, str):
+                    from datetime import date as date_type
+                    value = date_type.fromisoformat(value) if value else None
                 pro_fields[key] = value
         
         # Update user table fields (name, phone, bio, profile_image)
