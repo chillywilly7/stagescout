@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { stagepro } from '@/api/stageproClient';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
   ArrowLeft, MapPin, Star, Zap, Clock, DollarSign, 
-  Calendar, CheckCircle, ChevronRight, Shield
+  Calendar, CheckCircle, ChevronRight, Shield, MessageSquare
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -48,6 +49,8 @@ const EXP_LABELS = {
 export default function ScoutProfile() {
   const urlParams = new URLSearchParams(window.location.search);
   const scoutId = urlParams.get('id');
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
 
   const { data: scout, isLoading } = useQuery({
     queryKey: ['scout', scoutId],
@@ -355,6 +358,16 @@ export default function ScoutProfile() {
                   <ChevronRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
+
+              {isAuthenticated && user?.user_type === 'customer' && (
+                <Button 
+                  className="w-full mt-3 bg-neon-teal hover:bg-neon-teal/90 text-black font-semibold py-6"
+                  onClick={() => navigate(createPageUrl('BookingChat') + `?pro_id=${scout.user_id}&scout_id=${scout.id}&customer_id=${user.id}`)}
+                >
+                  <MessageSquare className="w-5 h-5 mr-2" />
+                  Message {scout.name?.split(' ')[0] || 'Pro'}
+                </Button>
+              )}
             </motion.div>
 
             {/* Availability Preview */}
