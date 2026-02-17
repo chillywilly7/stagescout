@@ -63,6 +63,29 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
   const [activeTab, setActiveTab] = useState('basic');
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Sanitize scoutProfile: replace null values with proper defaults to avoid
+  // uncontrolled-to-controlled input warnings in React
+  const sanitizedProfile = scoutProfile ? Object.fromEntries(
+    Object.entries(scoutProfile).map(([key, value]) => {
+      if (value === null || value === undefined) {
+        // Return appropriate default based on the field type
+        if (['services', 'venue_types', 'portfolio_images', 'gear_highlights',
+             'style_tags', 'availability_dates', 'equipment_list',
+             'verification_documents'].includes(key)) {
+          return [key, []];
+        }
+        if (['sxsw_years', 'turnaround_days', 'years_experience'].includes(key)) {
+          return [key, 0];
+        }
+        if (['available_last_minute', 'is_austin_based'].includes(key)) {
+          return [key, false];
+        }
+        return [key, ''];
+      }
+      return [key, value];
+    })
+  ) : {};
+
   const [formData, setFormData] = useState({
     name: '',
     email: email,
@@ -83,18 +106,39 @@ export default function ProfileForm({ scoutProfile, proAccount, email }) {
     gear_highlights: [],
     style_tags: [],
     is_austin_based: true,
-    ...scoutProfile
+    ...sanitizedProfile
   });
 
   useEffect(() => {
     if (scoutProfile || proAccount) {
+      // Re-sanitize when scoutProfile changes
+      const freshSanitized = scoutProfile ? Object.fromEntries(
+        Object.entries(scoutProfile).map(([key, value]) => {
+          if (value === null || value === undefined) {
+            if (['services', 'venue_types', 'portfolio_images', 'gear_highlights',
+                 'style_tags', 'availability_dates', 'equipment_list',
+                 'verification_documents'].includes(key)) {
+              return [key, []];
+            }
+            if (['sxsw_years', 'turnaround_days', 'years_experience'].includes(key)) {
+              return [key, 0];
+            }
+            if (['available_last_minute', 'is_austin_based'].includes(key)) {
+              return [key, false];
+            }
+            return [key, ''];
+          }
+          return [key, value];
+        })
+      ) : {};
+
       setFormData((prev) => ({ 
         ...prev,
         // Use scoutProfile data first, fall back to proAccount
         name: scoutProfile?.name || proAccount?.name || prev.name,
         phone: scoutProfile?.phone || proAccount?.phone || prev.phone,
         email: scoutProfile?.email || proAccount?.email || email,
-        ...scoutProfile 
+        ...freshSanitized 
       }));
     }
   }, [scoutProfile, proAccount, email]);
