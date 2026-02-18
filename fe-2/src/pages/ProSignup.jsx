@@ -194,8 +194,15 @@ export default function ProSignup() {
       return;
     }
 
-    // Skip email verification for now - go to info step
-    setStep('info');
+    // Send verification email
+    setLoading(true);
+    try {
+      await stagepro.auth.customer.sendVerification(email, '', 'pro');
+      setStep('verify');
+    } catch (err) {
+      setError(err.message || 'Failed to send verification email. Please try again.');
+    }
+    setLoading(false);
   };
 
   const handleVerification = async (e) => {
@@ -203,8 +210,13 @@ export default function ProSignup() {
     setLoading(true);
     setError('');
 
-    // Skip verification - go to info
-    setStep('info');
+    try {
+      // Verify the code server-side
+      await stagepro.auth.customer.verifyEmail(email, inputCode);
+      setStep('info');
+    } catch (err) {
+      setError(err.message || 'Invalid verification code. Please try again.');
+    }
     setLoading(false);
   };
 
@@ -312,8 +324,9 @@ export default function ProSignup() {
     setError('');
     
     try {
-      // Email verification not needed for now
-      alert('Verification skipped - continue to next step.');
+      await stagepro.auth.customer.sendVerification(email, '', 'pro');
+      setError(''); // Clear any previous error
+      alert('Verification code resent! Check your email.');
     } catch (err) {
       setError(err.message || 'Failed to resend code. Please try again.');
     }
@@ -396,7 +409,12 @@ export default function ProSignup() {
                     disabled={loading || emailStatus.checking || emailStatus.available === false}
                     className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
-                    {emailStatus.checking ? (
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Sending Verification...
+                      </>
+                    ) : emailStatus.checking ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
                         Checking...
