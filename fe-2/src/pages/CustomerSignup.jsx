@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { stagepro } from '@/api/stageproClient';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -23,7 +23,7 @@ function useDebounce(value, delay) {
 
 export default function CustomerSignup() {
   const navigate = useNavigate();
-  const [step, setStep] = useState('info'); // 'info', 'security', 'password', 'success'
+  const [step, setStep] = useState('email'); // 'email', 'verify', 'info', 'security', 'password', 'success'
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -152,6 +152,31 @@ export default function CustomerSignup() {
     return null;
   };
 
+  const handleEmailSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (emailStatus.available === false) {
+      setError('Please use a different email address.');
+      return;
+    }
+
+    if (emailStatus.checking) {
+      setError('Please wait for email validation to complete.');
+      return;
+    }
+
+    // Send verification email
+    setLoading(true);
+    try {
+      await stagepro.auth.customer.sendVerification(email, '');
+      setStep('verify');
+    } catch (err) {
+      setError(err.message || 'Failed to send verification email. Please try again.');
+    }
+    setLoading(false);
+  };
+
   const handleInfoSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -169,31 +194,18 @@ export default function CustomerSignup() {
       return;
     }
 
-    if (emailStatus.available === false) {
-      setError('Please use a different email address.');
-      return;
-    }
-
     if (phoneStatus.available === false) {
       setError('Please use a different phone number or fix the format.');
       return;
     }
 
     // Wait for any pending checks
-    if (emailStatus.checking || phoneStatus.checking) {
+    if (phoneStatus.checking) {
       setError('Please wait for validation to complete.');
       return;
     }
 
-    // Send verification email and go to verify step
-    setLoading(true);
-    try {
-      await stagepro.auth.customer.sendVerification(email, name);
-      setStep('verify');
-    } catch (err) {
-      setError(err.message || 'Failed to send verification email. Please try again.');
-    }
-    setLoading(false);
+    setStep('security');
   };
 
   const handleSecuritySubmit = async (e) => {
@@ -221,7 +233,7 @@ export default function CustomerSignup() {
     try {
       // Verify the code server-side using email verification endpoint
       await stagepro.auth.customer.verifyEmail(email, inputCode);
-      setStep('security');
+      setStep('info');
     } catch (err) {
       setError(err.message || 'Invalid verification code. Please try again.');
     }
@@ -283,6 +295,11 @@ export default function CustomerSignup() {
       window.dispatchEvent(new Event('storage'));
       
       setStep('success');
+      
+      // Auto-redirect to dashboard after 2 seconds
+      setTimeout(() => {
+        navigate(createPageUrl('CustomerDashboard') + `?email=${encodeURIComponent(email)}&new=true`);
+      }, 2000);
     } catch (err) {
       setError(err.message || 'Failed to create account. Please try again.');
     }
@@ -299,7 +316,7 @@ export default function CustomerSignup() {
     setError('');
     
     try {
-      await stagepro.auth.customer.sendVerification(email, name);
+      await stagepro.auth.customer.sendVerification(email, '');
       setError(''); // Clear any previous error
       alert('Verification code resent! Check your email.');
     } catch (err) {
@@ -326,48 +343,19 @@ export default function CustomerSignup() {
             </p>
           </div>
 
-          {step === 'info' && (
+          {step === 'email' && (
             <Card className="bg-white/5 border-white/10">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-burnt-orange" />
-                  Your Information
+                  <Mail className="w-5 h-5 text-burnt-orange" />
+                  Enter Your Email
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Let's get you started
+                  We'll verify your email to get started
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleInfoSubmit} className="space-y-4">
-                  <div>
-                    <Label className="text-white mb-2 block">Full Name</Label>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="John Doe"
-                        className={`bg-white/5 border-white/20 text-white pr-10 ${
-                          nameValid === true ? 'border-green-500/50' : 
-                          nameValid === false ? 'border-red-500/50' : ''
-                        }`}
-                      />
-                      {nameValid !== null && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          {nameValid ? (
-                            <Check className="w-4 h-4 text-green-400" />
-                          ) : (
-                            <X className="w-4 h-4 text-red-400" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {nameValid === false && (
-                      <p className="text-red-400 text-xs mt-1">Name must be at least 2 characters</p>
-                    )}
-                  </div>
-
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
                   <div>
                     <Label className="text-white mb-2 block">Email Address</Label>
                     <div className="relative">
@@ -399,6 +387,89 @@ export default function CustomerSignup() {
                       checking={emailStatus.checking} 
                       message={emailStatus.message} 
                     />
+                  </div>
+
+                  {error && (
+                    <div className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loading || emailStatus.checking || emailStatus.available === false}
+                    className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Sending Verification...
+                      </>
+                    ) : emailStatus.checking ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Checking...
+                      </>
+                    ) : (
+                      'Continue'
+                    )}
+                  </Button>
+
+                  <p className="text-center text-gray-400 text-sm mt-4">
+                    Already have an account?{' '}
+                    <Link 
+                      to={createPageUrl('CustomerSignin')} 
+                      className="text-burnt-orange hover:text-burnt-orange/80 font-semibold"
+                    >
+                      Sign In
+                    </Link>
+                  </p>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === 'info' && (
+            <Card className="bg-white/5 border-white/10">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <User className="w-5 h-5 text-burnt-orange" />
+                  Your Information
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Tell us a bit about yourself
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleInfoSubmit} className="space-y-4">
+                  <div>
+                    <Label className="text-white mb-2 block">Full Name</Label>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="John Doe"
+                        className={`bg-white/5 border-white/20 text-white pr-10 ${
+                          nameValid === true ? 'border-green-500/50' : 
+                          nameValid === false ? 'border-red-500/50' : ''
+                        }`}
+                      />
+                      {nameValid !== null && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {nameValid ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <X className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {nameValid === false && (
+                      <p className="text-red-400 text-xs mt-1">Name must be at least 2 characters</p>
+                    )}
                   </div>
 
                   <div>
@@ -443,15 +514,10 @@ export default function CustomerSignup() {
 
                   <Button
                     type="submit"
-                    disabled={loading || emailStatus.checking || phoneStatus.checking || emailStatus.available === false || phoneStatus.available === false || !phone}
+                    disabled={loading || phoneStatus.checking || phoneStatus.available === false || !phone}
                     className="w-full bg-burnt-orange hover:bg-burnt-orange/90 text-white disabled:opacity-50"
                   >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        Sending Verification...
-                      </>
-                    ) : emailStatus.checking || phoneStatus.checking ? (
+                    {phoneStatus.checking ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
                         Validating...
@@ -460,16 +526,6 @@ export default function CustomerSignup() {
                       'Continue'
                     )}
                   </Button>
-
-                  <p className="text-center text-gray-400 text-sm mt-4">
-                    Already have an account?{' '}
-                    <Link 
-                      to={createPageUrl('CustomerSignin')} 
-                      className="text-burnt-orange hover:text-burnt-orange/80 font-semibold"
-                    >
-                      Sign In
-                    </Link>
-                  </p>
                 </form>
               </CardContent>
             </Card>
@@ -535,7 +591,7 @@ export default function CustomerSignup() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setStep('info')}
+                    onClick={() => setStep('email')}
                     className="w-full text-gray-400 hover:text-white"
                   >
                     Use Different Email
@@ -774,7 +830,7 @@ export default function CustomerSignup() {
                   Account Created! 🎉
                 </h3>
                 <p className="text-gray-400 mb-8">
-                  Welcome to StagePros. You're all set to book services.
+                  Welcome to StagePros. Redirecting to your dashboard...
                 </p>
                 <Button
                   onClick={handleGoToDashboard}
